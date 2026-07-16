@@ -59,23 +59,32 @@ button.secondary {
 .topbar-left {
   display: flex;
   align-items: center;
-  gap: 1.5rem;
+  gap: 1.25rem;
 }
 
 .home-btn {
-  background: transparent;
-  border: 1px solid var(--border-strong);
-  color: var(--text);
-  padding: 0.6rem 1rem;
+  background: linear-gradient(135deg, var(--accent) 0%, #01015e 100%);
+  color: white;
+  border: none;
+  padding: 0.65rem 1rem;
   font-weight: 600;
+  border-radius: 0.75rem;
   white-space: nowrap;
-  transition: all 0.2s;
+  transition: all 0.3s;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.95rem;
+  box-shadow: 0 2px 8px rgba(1, 1, 94, 0.15);
 }
 
 .home-btn:hover {
-  background: rgba(1, 1, 94, 0.08);
-  border-color: var(--accent);
-  color: var(--accent);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(1, 1, 94, 0.25);
+}
+
+.home-btn:active {
+  transform: translateY(0);
 }
 
 .eyebrow {
