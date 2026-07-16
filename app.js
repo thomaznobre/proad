@@ -1,3 +1,466 @@
+/* ===== SISTEMA DE AUTENTICAÇÃO ===== */
+
+// Usuário logado atualmente
+let currentUser = null;
+
+// Carregar usuário do localStorage se existir
+function loadCurrentUser() {
+  const saved = localStorage.getItem('proad-current-user');
+  if (saved) {
+    try {
+      currentUser = JSON.parse(saved);
+    } catch (error) {
+      console.error('Erro ao carregar usuário:', error);
+    }
+  }
+}
+
+// Salvar usuário no localStorage
+function saveCurrentUser() {
+  if (currentUser) {
+    localStorage.setItem('proad-current-user', JSON.stringify(currentUser));
+  } else {
+    localStorage.removeItem('proad-current-user');
+  }
+}
+
+// Obter todos os usuários
+function getAllUsers() {
+  const saved = localStorage.getItem('proad-users');
+  return saved ? JSON.parse(saved) : [];
+}
+
+// Salvar usuários
+function saveAllUsers(users) {
+  localStorage.setItem('proad-users', JSON.stringify(users));
+}
+
+// Validações
+function validateCPF(cpf) {
+  // Remove caracteres especiais
+  const cleanCPF = cpf.replace(/\D/g, '');
+  
+  if (cleanCPF.length !== 11) return false;
+  
+  // Verifica se todos os dígitos são iguais
+  if (/^(\d)\1{10}$/.test(cleanCPF)) return false;
+  
+  // Calcula o primeiro dígito verificador
+  let sum = 0;
+  for (let i = 0; i < 9; i++) {
+    sum += parseInt(cleanCPF[i]) * (10 - i);
+  }
+  let remainder = sum % 11;
+  let digit1 = remainder < 2 ? 0 : 11 - remainder;
+  
+  if (digit1 !== parseInt(cleanCPF[9])) return false;
+  
+  // Calcula o segundo dígito verificador
+  sum = 0;
+  for (let i = 0; i < 10; i++) {
+    sum += parseInt(cleanCPF[i]) * (11 - i);
+  }
+  remainder = sum % 11;
+  let digit2 = remainder < 2 ? 0 : 11 - remainder;
+  
+  if (digit2 !== parseInt(cleanCPF[10])) return false;
+  
+  return true;
+}
+
+function validateEmail(email) {
+  const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return regex.test(email);
+}
+
+function validatePhone(phone) {
+  // Remove caracteres especiais
+  const cleanPhone = phone.replace(/\D/g, '');
+  // Deve ter entre 10 e 11 dígitos
+  return cleanPhone.length >= 10 && cleanPhone.length <= 11;
+}
+
+function validatePassword(password) {
+  const requirements = {
+    length: password.length >= 8,
+    uppercase: /[A-Z]/.test(password),
+    lowercase: /[a-z]/.test(password),
+    number: /\d/.test(password),
+    special: /[!@#$%^&*]/.test(password)
+  };
+  
+  return {
+    isValid: Object.values(requirements).every(r => r),
+    requirements
+  };
+}
+
+function formatCPF(cpf) {
+  const clean = cpf.replace(/\D/g, '');
+  if (clean.length !== 11) return cpf;
+  return clean.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+}
+
+function formatPhone(phone) {
+  const clean = phone.replace(/\D/g, '');
+  if (clean.length === 11) {
+    return clean.replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3');
+  }
+  if (clean.length === 10) {
+    return clean.replace(/(\d{2})(\d{4})(\d{4})/, '($1) $2-$3');
+  }
+  return phone;
+}
+
+// ===== LÓGICA DE LOGIN =====
+
+function showLoginScreen() {
+  const loginScreen = document.getElementById('loginScreen');
+  const appScreen = document.getElementById('appScreen');
+  
+  if (loginScreen) loginScreen.style.display = 'flex';
+  if (appScreen) appScreen.style.display = 'none';
+}
+
+function showAppScreen() {
+  const loginScreen = document.getElementById('loginScreen');
+  const appScreen = document.getElementById('appScreen');
+  
+  if (loginScreen) loginScreen.style.display = 'none';
+  if (appScreen) appScreen.style.display = 'block';
+}
+
+function handleLogin(e) {
+  e.preventDefault();
+  
+  const loginInput = document.getElementById('loginInput');
+  const loginPassword = document.getElementById('loginPassword');
+  const loginInputError = document.getElementById('loginInputError');
+  const loginPasswordError = document.getElementById('loginPasswordError');
+  const loginMessage = document.getElementById('loginMessage');
+  
+  // Limpar erros
+  loginInputError.textContent = '';
+  loginPasswordError.textContent = '';
+  loginMessage.textContent = '';
+  loginMessage.classList.remove('error', 'success');
+  
+  const input = loginInput.value.trim();
+  const password = loginPassword.value;
+  
+  if (!input) {
+    loginInputError.textContent = 'CPF ou e-mail é obrigatório';
+    return;
+  }
+  
+  if (!password) {
+    loginPasswordError.textContent = 'Senha é obrigatória';
+    return;
+  }
+  
+  // Buscar usuário
+  const users = getAllUsers();
+  const user = users.find(u => {
+    const cleanCPF = u.cpf.replace(/\D/g, '');
+    const inputCPF = input.replace(/\D/g, '');
+    return (cleanCPF === inputCPF || u.email.toLowerCase() === input.toLowerCase()) && u.password === password;
+  });
+  
+  if (!user) {
+    loginMessage.textContent = 'CPF/E-mail ou senha inválidos';
+    loginMessage.classList.add('error');
+    return;
+  }
+  
+  // Login bem-sucedido
+  currentUser = { id: user.id, nome: user.nome, email: user.email, cpf: user.cpf };
+  saveCurrentUser();
+  loginInput.value = '';
+  loginPassword.value = '';
+  showAppScreen();
+  
+  // Inicializar app
+  if (typeof init === 'function') {
+    init();
+  }
+}
+
+function handleLogout() {
+  if (confirm('Tem certeza que deseja fazer logout?')) {
+    currentUser = null;
+    saveCurrentUser();
+    showLoginScreen();
+    document.getElementById('loginForm').reset();
+  }
+}
+
+function openSignupModal() {
+  const modal = document.getElementById('signupModal');
+  if (modal) {
+    modal.classList.add('active');
+  }
+}
+
+function closeSignupModal() {
+  const modal = document.getElementById('signupModal');
+  if (modal) {
+    modal.classList.remove('active');
+  }
+}
+
+function updatePasswordRequirements() {
+  const password = document.getElementById('signupPassword').value;
+  const validation = validatePassword(password);
+  
+  const reqLength = document.getElementById('reqLength');
+  const reqUppercase = document.getElementById('reqUppercase');
+  const reqLowercase = document.getElementById('reqLowercase');
+  const reqNumber = document.getElementById('reqNumber');
+  const reqSpecial = document.getElementById('reqSpecial');
+  const signupBtn = document.getElementById('signupBtn');
+  
+  if (validation.requirements.length) {
+    reqLength.classList.add('met');
+  } else {
+    reqLength.classList.remove('met');
+  }
+  
+  if (validation.requirements.uppercase) {
+    reqUppercase.classList.add('met');
+  } else {
+    reqUppercase.classList.remove('met');
+  }
+  
+  if (validation.requirements.lowercase) {
+    reqLowercase.classList.add('met');
+  } else {
+    reqLowercase.classList.remove('met');
+  }
+  
+  if (validation.requirements.number) {
+    reqNumber.classList.add('met');
+  } else {
+    reqNumber.classList.remove('met');
+  }
+  
+  if (validation.requirements.special) {
+    reqSpecial.classList.add('met');
+  } else {
+    reqSpecial.classList.remove('met');
+  }
+  
+  // Habilitar botão se validação passar
+  if (validation.isValid) {
+    signupBtn.disabled = false;
+  } else {
+    signupBtn.disabled = true;
+  }
+}
+
+function handleSignup(e) {
+  e.preventDefault();
+  
+  const firstName = document.getElementById('signupFirstName').value.trim();
+  const lastName = document.getElementById('signupLastName').value.trim();
+  const cpf = document.getElementById('signupCPF').value.trim();
+  const email = document.getElementById('signupEmail').value.trim();
+  const phone = document.getElementById('signupPhone').value.trim();
+  const password = document.getElementById('signupPassword').value;
+  
+  // Limpar mensagens de erro
+  const errors = {};
+  document.getElementById('signupFirstNameError').textContent = '';
+  document.getElementById('signupLastNameError').textContent = '';
+  document.getElementById('signupCPFError').textContent = '';
+  document.getElementById('signupEmailError').textContent = '';
+  document.getElementById('signupPhoneError').textContent = '';
+  document.getElementById('signupPasswordError').textContent = '';
+  document.getElementById('signupMessage').textContent = '';
+  document.getElementById('signupMessage').classList.remove('error', 'success');
+  
+  // Validações
+  if (!firstName) {
+    errors.firstName = 'Nome é obrigatório';
+  }
+  
+  if (!lastName) {
+    errors.lastName = 'Sobrenome é obrigatório';
+  }
+  
+  if (!validateCPF(cpf)) {
+    errors.cpf = 'CPF inválido';
+  } else {
+    // Verificar se CPF já está registrado
+    const users = getAllUsers();
+    const cleanCPF = cpf.replace(/\D/g, '');
+    if (users.some(u => u.cpf.replace(/\D/g, '') === cleanCPF)) {
+      errors.cpf = 'CPF já está registrado';
+    }
+  }
+  
+  if (!validateEmail(email)) {
+    errors.email = 'E-mail inválido';
+  } else {
+    // Verificar se e-mail já está registrado
+    const users = getAllUsers();
+    if (users.some(u => u.email.toLowerCase() === email.toLowerCase())) {
+      errors.email = 'E-mail já está registrado';
+    }
+  }
+  
+  if (!validatePhone(phone)) {
+    errors.phone = 'Telefone inválido (deve incluir DDD)';
+  }
+  
+  const passwordValidation = validatePassword(password);
+  if (!passwordValidation.isValid) {
+    errors.password = 'Senha não atende aos requisitos';
+  }
+  
+  // Exibir erros
+  if (Object.keys(errors).length > 0) {
+    if (errors.firstName) {
+      document.getElementById('signupFirstNameError').textContent = errors.firstName;
+      document.getElementById('signupFirstName').classList.add('error');
+    }
+    if (errors.lastName) {
+      document.getElementById('signupLastNameError').textContent = errors.lastName;
+      document.getElementById('signupLastName').classList.add('error');
+    }
+    if (errors.cpf) {
+      document.getElementById('signupCPFError').textContent = errors.cpf;
+      document.getElementById('signupCPF').classList.add('error');
+    }
+    if (errors.email) {
+      document.getElementById('signupEmailError').textContent = errors.email;
+      document.getElementById('signupEmail').classList.add('error');
+    }
+    if (errors.phone) {
+      document.getElementById('signupPhoneError').textContent = errors.phone;
+      document.getElementById('signupPhone').classList.add('error');
+    }
+    if (errors.password) {
+      document.getElementById('signupPasswordError').textContent = errors.password;
+      document.getElementById('signupPassword').classList.add('error');
+    }
+    return;
+  }
+  
+  // Remover classes de erro
+  document.getElementById('signupFirstName').classList.remove('error');
+  document.getElementById('signupLastName').classList.remove('error');
+  document.getElementById('signupCPF').classList.remove('error');
+  document.getElementById('signupEmail').classList.remove('error');
+  document.getElementById('signupPhone').classList.remove('error');
+  document.getElementById('signupPassword').classList.remove('error');
+  
+  // Criar novo usuário
+  const newUser = {
+    id: crypto.randomUUID(),
+    nome: `${firstName} ${lastName}`,
+    cpf: formatCPF(cpf),
+    email,
+    phone: formatPhone(phone),
+    password, // Em produção, isso deveria ser hasheado
+    createdAt: new Date().toISOString()
+  };
+  
+  const users = getAllUsers();
+  users.push(newUser);
+  saveAllUsers(users);
+  
+  // Mensagem de sucesso
+  const signupMessage = document.getElementById('signupMessage');
+  signupMessage.textContent = 'Conta criada com sucesso! Você pode fazer login agora.';
+  signupMessage.classList.add('success');
+  
+  // Limpar formulário
+  document.getElementById('signupForm').reset();
+  
+  // Fechar modal após 2 segundos
+  setTimeout(() => {
+    closeSignupModal();
+    showLoginScreen();
+  }, 2000);
+}
+
+// ===== INICIALIZAÇÃO DO SISTEMA DE AUTENTICAÇÃO =====
+
+function initAuth() {
+  // Carregar usuário salvo
+  loadCurrentUser();
+  
+  // Se houver usuário logado, mostrar app, senão mostrar login
+  if (currentUser) {
+    showAppScreen();
+  } else {
+    showLoginScreen();
+  }
+  
+  // Bind login form
+  const loginForm = document.getElementById('loginForm');
+  if (loginForm) {
+    loginForm.addEventListener('submit', handleLogin);
+  }
+  
+  // Bind signup buttons
+  const signupBtnLogin = document.getElementById('signupBtnLogin');
+  if (signupBtnLogin) {
+    signupBtnLogin.addEventListener('click', (e) => {
+      e.preventDefault();
+      openSignupModal();
+    });
+  }
+  
+  const closeSignupBtn = document.getElementById('closeSignupModal');
+  if (closeSignupBtn) {
+    closeSignupBtn.addEventListener('click', closeSignupModal);
+  }
+  
+  // Fechar modal ao clicar fora
+  const signupModal = document.getElementById('signupModal');
+  if (signupModal) {
+    signupModal.addEventListener('click', (e) => {
+      if (e.target === signupModal) {
+        closeSignupModal();
+      }
+    });
+  }
+  
+  // Bind signup form
+  const signupForm = document.getElementById('signupForm');
+  if (signupForm) {
+    signupForm.addEventListener('submit', handleSignup);
+  }
+  
+  // Monitorar mudanças na senha para atualizar requisitos
+  const signupPassword = document.getElementById('signupPassword');
+  if (signupPassword) {
+    signupPassword.addEventListener('input', updatePasswordRequirements);
+  }
+  
+  // Limpar erros ao digitar
+  const inputs = document.querySelectorAll('.login-form input, .signup-form input');
+  inputs.forEach(input => {
+    input.addEventListener('input', () => {
+      input.classList.remove('error');
+    });
+  });
+  
+  // Bind logout button
+  const logoutBtn = document.getElementById('logoutBtn');
+  if (logoutBtn) {
+    logoutBtn.addEventListener('click', handleLogout);
+  }
+  
+  // Inicializar app se usuário estiver logado
+  if (currentUser) {
+    init();
+  }
+}
+
+// ===== FIM SISTEMA DE AUTENTICAÇÃO =====
+
 const moduleConfig = [
   { key: 'painel', label: 'Painel Geral', icon: '▣', description: 'Visualização diferenciada por perfil do usuário.' },
   { key: 'licitacoes', label: 'Licitações', icon: '⚖', description: 'Fluxo de compras e procedimentos licitatórios.' },
@@ -5,6 +468,7 @@ const moduleConfig = [
   { key: 'fornecedores', label: 'Fornecedores', icon: '🏢', description: 'Planilha com cadastro e dados dos fornecedores.' },
   { key: 'usuarios', label: 'Permissões e Usuários', icon: '🔐', description: 'Controle de acesso e perfis.' }
 ];
+
 
 const fornecedoresData = [
   {
@@ -971,4 +1435,5 @@ function resetProcess() {
   render();
 }
 
-init();
+// Inicializar sistema de autenticação
+initAuth();

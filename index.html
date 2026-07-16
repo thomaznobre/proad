@@ -7,6 +7,107 @@
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
+    <!-- Tela de Login -->
+    <div id="loginScreen" class="login-screen">
+      <div class="login-container">
+        <div class="login-brand">
+          <div class="login-icon">P</div>
+          <h1>Proad</h1>
+          <p>Sistema de Protocolo e Tramitação Processual</p>
+        </div>
+
+        <form id="loginForm" class="login-form">
+          <h2>Fazer login</h2>
+          
+          <div class="form-group">
+            <label for="loginInput">CPF ou E-mail</label>
+            <input id="loginInput" type="text" placeholder="Digite seu CPF ou e-mail" required />
+            <small id="loginInputError" class="error-message"></small>
+          </div>
+
+          <div class="form-group">
+            <label for="loginPassword">Senha</label>
+            <input id="loginPassword" type="password" placeholder="Digite sua senha" required />
+            <small id="loginPasswordError" class="error-message"></small>
+          </div>
+
+          <button id="loginBtn" type="submit" class="login-btn">Entrar</button>
+
+          <div class="login-divider">
+            <span>Não tem uma conta?</span>
+          </div>
+
+          <button id="signupBtnLogin" type="button" class="signup-btn">Criar conta</button>
+        </form>
+
+        <div id="loginMessage" class="login-message"></div>
+      </div>
+    </div>
+
+    <!-- Modal de Cadastro -->
+    <div id="signupModal" class="modal-overlay">
+      <div class="modal-content">
+        <button id="closeSignupModal" class="modal-close" type="button">✕</button>
+        
+        <form id="signupForm" class="signup-form">
+          <h2>Criar conta</h2>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="signupFirstName">Nome</label>
+              <input id="signupFirstName" type="text" placeholder="Digite seu nome" required />
+              <small id="signupFirstNameError" class="error-message"></small>
+            </div>
+            <div class="form-group">
+              <label for="signupLastName">Sobrenome</label>
+              <input id="signupLastName" type="text" placeholder="Digite seu sobrenome" required />
+              <small id="signupLastNameError" class="error-message"></small>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="signupCPF">CPF</label>
+            <input id="signupCPF" type="text" placeholder="000.000.000-00" required />
+            <small id="signupCPFError" class="error-message"></small>
+          </div>
+
+          <div class="form-group">
+            <label for="signupEmail">E-mail</label>
+            <input id="signupEmail" type="email" placeholder="seu@email.com" required />
+            <small id="signupEmailError" class="error-message"></small>
+          </div>
+
+          <div class="form-group">
+            <label for="signupPhone">Telefone com DDD</label>
+            <input id="signupPhone" type="tel" placeholder="(11) 98765-4321" required />
+            <small id="signupPhoneError" class="error-message"></small>
+          </div>
+
+          <div class="form-group">
+            <label for="signupPassword">Senha</label>
+            <input id="signupPassword" type="password" placeholder="Mínimo 8 caracteres" required />
+            <small id="signupPasswordError" class="error-message"></small>
+            <div class="password-requirements">
+              <p>A senha deve conter:</p>
+              <ul>
+                <li id="reqLength">✓ Mínimo 8 caracteres</li>
+                <li id="reqUppercase">✓ Uma letra maiúscula</li>
+                <li id="reqLowercase">✓ Uma letra minúscula</li>
+                <li id="reqNumber">✓ Um número</li>
+                <li id="reqSpecial">✓ Um caractere especial (!@#$%^&*)</li>
+              </ul>
+            </div>
+          </div>
+
+          <button id="signupBtn" type="submit" class="signup-submit-btn" disabled>Criar conta</button>
+        </form>
+
+        <div id="signupMessage" class="signup-message"></div>
+      </div>
+    </div>
+
+    <!-- Aplicação Principal -->
+    <div id="appScreen" class="app-screen" style="display: none;">
     <header class="topbar">
       <div>
         <p class="eyebrow">Sistema de protocolo</p>
@@ -19,6 +120,7 @@
           <select id="riteSelect"></select>
         </label>
         <button id="newProcessBtn">Protocolar processo</button>
+        <button id="logoutBtn" class="logout-btn">Sair</button>
       </div>
     </header>
 
@@ -62,6 +164,7 @@
       <main class="main-content">
         <section id="moduleContent" class="module-content"></section>
       </main>
+    </div>
     </div>
 
     <script src="app.js"></script>
