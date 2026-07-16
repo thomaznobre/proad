@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Proad — Protocolo e Tramitação Processual</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Sistema de protocolo</p>
+        <h1>Proad</h1>
+        <p class="subtitle">Gestão processual administrativa com ritos pré-definidos e visualização documental em tela dividida.</p>
+      </div>
+      <div class="header-actions">
+        <label class="field">
+          <span>Rito</span>
+          <select id="riteSelect"></select>
+        </label>
+        <button id="newProcessBtn">Protocolar processo</button>
+      </div>
+    </header>
+
+    <div class="app-shell">
+      <aside id="sidebar" class="sidebar">
+        <div class="sidebar-header">
+          <div class="brand-block">
+            <div class="brand-icon">P</div>
+            <div class="brand-text">
+              <h2>Proad</h2>
+              <p>Sistema administrativo</p>
+            </div>
+          </div>
+          <button id="toggleSidebarBtn" class="icon-btn" type="button" aria-label="Recolher menu">☰</button>
+        </div>
+
+        <nav class="sidebar-nav">
+          <button class="nav-item active" type="button">
+            <span class="nav-icon">▣</span>
+            <span class="nav-label">Painel Geral</span>
+          </button>
+          <button class="nav-item" type="button">
+            <span class="nav-icon">⚖</span>
+            <span class="nav-label">Licitações</span>
+          </button>
+          <button class="nav-item" type="button">
+            <span class="nav-icon">📄</span>
+            <span class="nav-label">Gestão de Contratos / ARPs</span>
+          </button>
+          <button class="nav-item" type="button">
+            <span class="nav-icon">🏢</span>
+            <span class="nav-label">Fornecedores</span>
+          </button>
+          <button class="nav-item" type="button">
+            <span class="nav-icon">🔐</span>
+            <span class="nav-label">Permissões e Usuários</span>
+          </button>
+        </nav>
+      </aside>
+
+      <main class="main-content">
+        <section id="moduleContent" class="module-content"></section>
+      </main>
+    </div>
+
+    <script src="app.js"></script>
+  </body>
+</html>
