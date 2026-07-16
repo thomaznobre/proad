@@ -453,6 +453,12 @@ function initAuth() {
     logoutBtn.addEventListener('click', handleLogout);
   }
   
+  // Bind home button
+  const homeBtn = document.getElementById('homeBtn');
+  if (homeBtn) {
+    homeBtn.addEventListener('click', handleLogout);
+  }
+  
   // Inicializar app se usuário estiver logado
   if (currentUser) {
     init();
