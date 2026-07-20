@@ -1236,6 +1236,7 @@ function bindSidebar() {
 
   toggleBtn.addEventListener('click', () => {
     sidebar.classList.toggle('collapsed');
+    toggleBtn.textContent = sidebar.classList.contains('collapsed') ? '▶' : '◀';
   });
 }
 
@@ -1523,16 +1524,18 @@ function renderModuleContent(moduleKey) {
               ${filteredData.map((item) => {
                 const height = (item.valor / maxValue) * 100;
                 return `
-                  <div class="chart-bar" data-name="${item.modalidade}" data-valor="R$ ${item.valor.toLocaleString('pt-BR')}" data-quantidade="${item.quantidade} licitações">
+                  <div class="chart-bar" data-name="${item.modalidade}" data-valor="R$ ${item.valor.toLocaleString('pt-BR')}" data-quantidade="${item.quantidade}">
                     <div class="chart-tooltip">${item.modalidade}<br/>${item.quantidade} licitações<br/>R$ ${item.valor.toLocaleString('pt-BR')}</div>
+                    <div class="bar-quantity">${item.quantidade}</div>
                     <div class="bar-fill" style="height: ${height}%"></div>
-                    <div class="bar-label">${item.modalidade}</div>
-                    <div class="bar-value">${item.quantidade} licitações</div>
                   </div>
                 `;
               }).join('')}
             </div>
           </div>
+        </div>
+        <div class="chart-bottom-labels">
+          ${filteredData.map((item) => `<div class="bar-label">${item.modalidade}</div>`).join('')}
         </div>
       </div>
     </section>
