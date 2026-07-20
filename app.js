@@ -1773,8 +1773,8 @@ function renderDonutChart(processos) {
     })(priority, count);
 
     if (count > 0) {
-      var angle = currentAngle + percent / 2;
-      var rad = (angle - 90) * Math.PI / 180;
+      var midAngle = currentAngle + (percent / 100) * 180;
+      var rad = midAngle * Math.PI / 180;
       var x = 120 + 100 * Math.cos(rad);
       var y = 120 + 100 * Math.sin(rad);
       var textEl = document.createElementNS('http://www.w3.org/2000/svg', 'text');
