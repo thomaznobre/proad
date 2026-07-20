@@ -1567,7 +1567,16 @@ function renderModuleContent(moduleKey) {
 
       <div class="charts-row">
         <div class="chart-card donut-card">
-          <h3>Prioridades dos Processos</h3>
+          <div class="donut-header">
+            <h3>Prioridades dos Processos</h3>
+            <div class="checkbox-dropdown" id="donutMunicipioDropdown">
+              <button type="button" class="dropdown-trigger-btn" id="donutMunicipioTrigger">Todos ▼</button>
+              <div class="dropdown-panel" id="donutMunicipioPanel">
+                <label class="cb-option all-option"><input type="checkbox" id="donutCbTodos" checked> Todos</label>
+                ${municipios.map(function(m) { return '<label class="cb-option"><input type="checkbox" class="donut-municipio-cb" value="' + m + '" checked> ' + m + '</label>'; }).join('')}
+              </div>
+            </div>
+          </div>
           <div class="donut-wrapper">
             <div class="donut-chart">
               <svg viewBox="0 0 240 240" class="donut-svg" id="donutSvg">
@@ -1591,12 +1600,21 @@ function renderModuleContent(moduleKey) {
             <h3>Urgentes / Órgão</h3>
             <div class="urgent-filters">
               <div class="filter-group">
-                <label>Município:</label>
-                <select id="urgentMunicipioFilter"></select>
+                <label>Município</label>
+                <div class="checkbox-dropdown" id="urgentMunicipioDropdown">
+                  <button type="button" class="dropdown-trigger-btn" id="urgentMunicipioTrigger">Todos ▼</button>
+                  <div class="dropdown-panel" id="urgentMunicipioPanel">
+                    <label class="cb-option all-option"><input type="checkbox" id="urgentCbMunicipiosTodos" checked> Todos</label>
+                    ${municipios.map(function(m) { return '<label class="cb-option"><input type="checkbox" class="urgent-municipio-cb" value="' + m + '" checked> ' + m + '</label>'; }).join('')}
+                  </div>
+                </div>
               </div>
               <div class="filter-group">
-                <label>Órgão:</label>
-                <select id="urgentOrgaoFilter" multiple size="3"></select>
+                <label>Órgão</label>
+                <div class="checkbox-dropdown" id="urgentOrgaoDropdown">
+                  <button type="button" class="dropdown-trigger-btn" id="urgentOrgaoTrigger">Todos ▼</button>
+                  <div class="dropdown-panel" id="urgentOrgaoPanel"></div>
+                </div>
               </div>
             </div>
           </div>
@@ -1608,8 +1626,7 @@ function renderModuleContent(moduleKey) {
                 <span data-label="5"></span>
                 <span data-label="0"></span>
               </div>
-              <div class="chart-bars" id="urgentChartBars">
-              </div>
+              <div class="chart-bars" id="urgentChartBars"></div>
             </div>
           </div>
           <div class="chart-bottom-labels" id="urgentBottomLabels"></div>
@@ -1618,158 +1635,11 @@ function renderModuleContent(moduleKey) {
     </section>
   `;
 
-  // Atualizar gráfico de rosca de prioridades
-  const totalProcesses = processosData.length;
-  document.getElementById('processesTotal').textContent = totalProcesses;
+  // Inicializar gráficos de prioridades e urgentes
+  initDonutFilter();
+  initUrgentFilters();
 
-  const priorityColors = {
-    'urgente': '#dc3545',
-    'alta': '#fd7e14',
-    'média': '#ffc107',
-    'baixa': '#5b5b58',
-    '-': '#D3D3D3'
-  };
-
-  const priorityTextColors = {
-    'urgente': '#ffffff',
-    'alta': '#ffffff',
-    'média': '#000000',
-    'baixa': '#ffffff',
-    '-': '#000000'
-  };
-
-  const priorityLabels = {
-    'urgente': 'Urgente',
-    'alta': 'Alta',
-    'média': 'Média',
-    'baixa': 'Baixa',
-    '-': 'Sem prioridade'
-  };
-
-  const priorityCounts = {
-    'urgente': processosData.filter((p) => p.prioridade === 'urgente').length,
-    'alta': processosData.filter((p) => p.prioridade === 'alta').length,
-    'média': processosData.filter((p) => p.prioridade === 'média').length,
-    'baixa': processosData.filter((p) => p.prioridade === 'baixa').length,
-    '-': processosData.filter((p) => p.prioridade === '-').length
-  };
-
-  let currentAngle = 0;
-  const priorityOrder = ['urgente', 'alta', 'média', 'baixa', '-'];
-  const svg = document.getElementById('donutSvg');
-  const tooltip = document.getElementById('donutTooltip');
-
-  priorityOrder.forEach((priority) => {
-    const count = priorityCounts[priority];
-    const percent = (count / totalProcesses) * 100;
-    const circumference = 2 * Math.PI * 100;
-    const strokeDasharray = (percent / 100) * circumference + ' ' + circumference;
-    const segment = svg.querySelector('.donut-segment[data-priority="' + priority + '"]');
-
-    if (segment) {
-      segment.style.stroke = priorityColors[priority];
-      segment.style.strokeDasharray = strokeDasharray;
-      segment.style.strokeDashoffset = -currentAngle * circumference / 360;
-
-      // Adicionar event listener para clique
-      segment.addEventListener('click', function() {
-        tooltip.textContent = priorityLabels[priority] + ': ' + count;
-        tooltip.classList.add('show');
-        setTimeout(() => tooltip.classList.remove('show'), 2500);
-      });
-
-      // Calcular posição do texto
-      const angle = currentAngle + (percent / 2);
-      const rad = (angle - 90) * Math.PI / 180;
-      const radius = 100;
-      const x = 120 + radius * Math.cos(rad);
-      const y = 120 + radius * Math.sin(rad);
-
-      // Criar ou atualizar text element
-      let textEl = svg.querySelector('text[data-priority="' + priority + '"]');
-      if (!textEl) {
-        textEl = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-        textEl.setAttribute('data-priority', priority);
-        svg.appendChild(textEl);
-      }
-      textEl.setAttribute('x', x);
-      textEl.setAttribute('y', y);
-      textEl.setAttribute('text-anchor', 'middle');
-      textEl.setAttribute('dominant-baseline', 'central');
-      textEl.setAttribute('font-size', '16');
-      textEl.setAttribute('font-weight', '700');
-      textEl.setAttribute('fill', priorityTextColors[priority]);
-      textEl.setAttribute('pointer-events', 'none');
-      textEl.textContent = count;
-
-      currentAngle += (percent / 100) * 360;
-    }
-  });
-
-  // Filtros para gráfico de urgente
-  const urgentMunicipioFilter = document.getElementById('urgentMunicipioFilter');
-  const urgentOrgaoFilter = document.getElementById('urgentOrgaoFilter');
-
-  if (urgentMunicipioFilter) {
-    urgentMunicipioFilter.innerHTML = municipios.map((municipio) => '<option value="' + municipio + '">' + municipio + '</option>').join('');
-    urgentMunicipioFilter.value = municipios[0] || '';
-
-    urgentMunicipioFilter.addEventListener('change', () => {
-      // Atualizar lista de órgãos
-      const selectedMunicipio = urgentMunicipioFilter.value;
-      const orgaosForMunicipio = orgaosPorMunicipio[selectedMunicipio] || [];
-      urgentOrgaoFilter.innerHTML = orgaosForMunicipio.map((orgao) => '<option value="' + orgao + '">' + orgao + '</option>').join('');
-      Array.from(urgentOrgaoFilter.options).forEach((opt) => opt.selected = true);
-      renderModuleContent('painel');
-    });
-
-    // Inicializar órgãos para o primeiro município
-    const initialMunicipio = municipios[0];
-    if (initialMunicipio) {
-      const orgaosForMunicipio = orgaosPorMunicipio[initialMunicipio] || [];
-      urgentOrgaoFilter.innerHTML = orgaosForMunicipio.map((orgao) => '<option value="' + orgao + '">' + orgao + '</option>').join('');
-      Array.from(urgentOrgaoFilter.options).forEach((opt) => opt.selected = true);
-    }
-  }
-
-  if (urgentOrgaoFilter) {
-    urgentOrgaoFilter.addEventListener('change', () => {
-      renderModuleContent('painel');
-    });
-  }
-
-  // Renderizar gráfico de urgente por órgão
-  const selectedMunicipio = (urgentMunicipioFilter && urgentMunicipioFilter.value) || municipios[0];
-  const selectedOrgaos = Array.from(urgentOrgaoFilter.selectedOptions || []).map((opt) => opt.value);
-
-  const urgentByOrgao = {};
-  processosData
-    .filter((p) => p.prioridade === 'urgente' && p.municipio === selectedMunicipio)
-    .forEach((p) => {
-      if (!urgentByOrgao[p.orgao]) urgentByOrgao[p.orgao] = 0;
-      urgentByOrgao[p.orgao]++;
-    });
-
-  const filteredUrgent = Object.entries(urgentByOrgao)
-    .filter(([orgao]) => selectedOrgaos.length === 0 || selectedOrgaos.includes(orgao))
-    .sort((a, b) => b[1] - a[1]);
-
-  const maxUrgent = filteredUrgent.length ? Math.max(...filteredUrgent.map((item) => item[1])) : 1;
-
-  const urgentChartBars = document.getElementById('urgentChartBars');
-  if (urgentChartBars) {
-    urgentChartBars.innerHTML = filteredUrgent.map((item) => {
-      const height = (item[1] / maxUrgent) * 100;
-      return '<div class="chart-bar"><div class="bar-quantity">' + item[1] + '</div><div class="bar-fill" style="height: ' + height + '%; background: #dc3545;"></div></div>';
-    }).join('');
-  }
-
-  const urgentBottomLabels = document.getElementById('urgentBottomLabels');
-  if (urgentBottomLabels) {
-    urgentBottomLabels.innerHTML = filteredUrgent.map(([orgao]) => '<div class="bar-label">' + orgao + '</div>').join('');
-  }
-
-  const municipioFilter = document.getElementById('municipioFilter');
+    const municipioFilter = document.getElementById('municipioFilter');
   const modalidadeFilter = document.getElementById('modalidadeFilter');
 
   if (municipioFilter) {
@@ -1812,6 +1682,231 @@ function updateActiveBar(bar) {
   bar.classList.add('active');
   const tooltip = bar.querySelector('.chart-tooltip');
   tooltip.style.opacity = '1';
+}
+
+/* ===== GRÁFICO DE ROSCA ===== */
+
+function initDonutFilter() {
+  const trigger = document.getElementById('donutMunicipioTrigger');
+  const panel = document.getElementById('donutMunicipioPanel');
+  if (!trigger || !panel) return;
+
+  trigger.addEventListener('click', function(e) {
+    e.stopPropagation();
+    panel.classList.toggle('open');
+    var op = document.getElementById('urgentMunicipioPanel');
+    var oop = document.getElementById('urgentOrgaoPanel');
+    if (op) op.classList.remove('open');
+    if (oop) oop.classList.remove('open');
+  });
+
+  var todosCb = document.getElementById('donutCbTodos');
+  if (todosCb) {
+    todosCb.addEventListener('change', function(e) {
+      document.querySelectorAll('.donut-municipio-cb').forEach(function(cb) { cb.checked = e.target.checked; });
+      donutUpdateFromFilter();
+    });
+  }
+
+  document.querySelectorAll('.donut-municipio-cb').forEach(function(cb) {
+    cb.addEventListener('change', function() {
+      var all = Array.from(document.querySelectorAll('.donut-municipio-cb'));
+      var todosEl = document.getElementById('donutCbTodos');
+      if (todosEl) todosEl.checked = all.every(function(c) { return c.checked; });
+      donutUpdateFromFilter();
+    });
+  });
+
+  donutUpdateFromFilter();
+}
+
+function donutUpdateFromFilter() {
+  var cbs = document.querySelectorAll('.donut-municipio-cb');
+  var selected = Array.from(cbs).filter(function(cb) { return cb.checked; }).map(function(cb) { return cb.value; });
+  var filtered = processosData.filter(function(p) { return selected.length === 0 || selected.includes(p.municipio); });
+  var trigger = document.getElementById('donutMunicipioTrigger');
+  if (trigger) trigger.textContent = (selected.length === cbs.length ? 'Todos' : selected.length + '/' + cbs.length) + ' ▼';
+  renderDonutChart(filtered);
+}
+
+function renderDonutChart(processos) {
+  var svg = document.getElementById('donutSvg');
+  var totalEl = document.getElementById('processesTotal');
+  if (!svg || !totalEl) return;
+
+  var total = processos.length;
+  totalEl.textContent = total;
+  Array.from(svg.querySelectorAll('text')).forEach(function(t) { t.remove(); });
+
+  var colors = { urgente: '#dc3545', alta: '#fd7e14', 'média': '#ffc107', baixa: '#5b5b58', '-': '#D3D3D3' };
+  var textColors = { urgente: '#ffffff', alta: '#ffffff', 'média': '#ffffff', baixa: '#000000', '-': '#000000' };
+  var labels = { urgente: 'Urgente', alta: 'Alta', 'média': 'Média', baixa: 'Baixa', '-': 'Sem prioridade' };
+  var order = ['urgente', 'alta', 'média', 'baixa', '-'];
+  var circumference = 2 * Math.PI * 100;
+
+  if (total === 0) {
+    order.forEach(function(p) {
+      var seg = svg.querySelector('.donut-segment[data-priority="' + p + '"]');
+      if (seg) { seg.style.stroke = p === 'urgente' ? '#e0e0e0' : 'transparent'; seg.style.strokeDasharray = p === 'urgente' ? circumference + ' 0' : '0 0'; seg.style.strokeDashoffset = '0'; }
+    });
+    return;
+  }
+
+  var currentAngle = 0;
+  order.forEach(function(priority) {
+    var count = processos.filter(function(p) { return p.prioridade === priority; }).length;
+    var percent = count / total * 100;
+    var seg = svg.querySelector('.donut-segment[data-priority="' + priority + '"]');
+    if (!seg) return;
+
+    seg.style.stroke = count > 0 ? colors[priority] : 'transparent';
+    seg.style.strokeDasharray = (percent / 100) * circumference + ' ' + circumference;
+    seg.style.strokeDashoffset = -currentAngle * circumference / 360;
+
+    var newSeg = seg.cloneNode(true);
+    seg.parentNode.replaceChild(newSeg, seg);
+    (function(p, c) {
+      newSeg.addEventListener('click', function() {
+        var tt = document.getElementById('donutTooltip');
+        if (tt) { tt.textContent = labels[p] + ': ' + c; tt.classList.add('show'); setTimeout(function() { tt.classList.remove('show'); }, 2500); }
+      });
+    })(priority, count);
+
+    if (count > 0) {
+      var angle = currentAngle + percent / 2;
+      var rad = (angle - 90) * Math.PI / 180;
+      var x = 120 + 100 * Math.cos(rad);
+      var y = 120 + 100 * Math.sin(rad);
+      var textEl = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      textEl.setAttribute('x', x); textEl.setAttribute('y', y);
+      textEl.setAttribute('text-anchor', 'middle'); textEl.setAttribute('dominant-baseline', 'central');
+      textEl.setAttribute('font-size', '16'); textEl.setAttribute('font-weight', '700');
+      textEl.setAttribute('fill', textColors[priority]); textEl.setAttribute('pointer-events', 'none');
+      textEl.textContent = count;
+      svg.appendChild(textEl);
+    }
+    currentAngle += percent / 100 * 360;
+  });
+}
+
+/* ===== GRÁFICO URGENTES POR ÓRGÃO ===== */
+
+function initUrgentFilters() {
+  var mTrigger = document.getElementById('urgentMunicipioTrigger');
+  var mPanel = document.getElementById('urgentMunicipioPanel');
+  var oTrigger = document.getElementById('urgentOrgaoTrigger');
+  var oPanel = document.getElementById('urgentOrgaoPanel');
+  if (!mTrigger) return;
+
+  if (!document._cbDropdownListenerAdded) {
+    document.addEventListener('click', function() {
+      document.querySelectorAll('.dropdown-panel.open').forEach(function(p) { p.classList.remove('open'); });
+    });
+    document._cbDropdownListenerAdded = true;
+  }
+
+  mTrigger.addEventListener('click', function(e) {
+    e.stopPropagation();
+    mPanel.classList.toggle('open');
+    oPanel.classList.remove('open');
+    var dp = document.getElementById('donutMunicipioPanel');
+    if (dp) dp.classList.remove('open');
+  });
+
+  oTrigger.addEventListener('click', function(e) {
+    e.stopPropagation();
+    oPanel.classList.toggle('open');
+    mPanel.classList.remove('open');
+    var dp = document.getElementById('donutMunicipioPanel');
+    if (dp) dp.classList.remove('open');
+  });
+
+  var mTodos = document.getElementById('urgentCbMunicipiosTodos');
+  if (mTodos) {
+    mTodos.addEventListener('change', function(e) {
+      document.querySelectorAll('.urgent-municipio-cb').forEach(function(cb) { cb.checked = e.target.checked; });
+      refreshUrgentOrgaos();
+    });
+  }
+
+  document.querySelectorAll('.urgent-municipio-cb').forEach(function(cb) {
+    cb.addEventListener('change', function() {
+      var all = Array.from(document.querySelectorAll('.urgent-municipio-cb'));
+      var todosEl = document.getElementById('urgentCbMunicipiosTodos');
+      if (todosEl) todosEl.checked = all.every(function(c) { return c.checked; });
+      refreshUrgentOrgaos();
+    });
+  });
+
+  refreshUrgentOrgaos();
+}
+
+function refreshUrgentOrgaos() {
+  var selectedM = Array.from(document.querySelectorAll('.urgent-municipio-cb:checked')).map(function(cb) { return cb.value; });
+  var allOrgaos = Array.from(new Set(processosData.filter(function(p) { return selectedM.includes(p.municipio); }).map(function(p) { return p.orgao; }))).sort();
+
+  var panel = document.getElementById('urgentOrgaoPanel');
+  if (!panel) return;
+
+  panel.innerHTML = '<label class="cb-option all-option"><input type="checkbox" id="urgentCbOrgaosTodos" checked> Todos</label>' +
+    allOrgaos.map(function(o) { return '<label class="cb-option"><input type="checkbox" class="urgent-orgao-cb" value="' + o + '" checked> ' + o + '</label>'; }).join('');
+
+  var oTodos = document.getElementById('urgentCbOrgaosTodos');
+  if (oTodos) {
+    oTodos.addEventListener('change', function(e) {
+      document.querySelectorAll('.urgent-orgao-cb').forEach(function(cb) { cb.checked = e.target.checked; });
+      updateUrgentChart();
+    });
+  }
+
+  document.querySelectorAll('.urgent-orgao-cb').forEach(function(cb) {
+    cb.addEventListener('change', function() {
+      var all = Array.from(document.querySelectorAll('.urgent-orgao-cb'));
+      var todosEl = document.getElementById('urgentCbOrgaosTodos');
+      if (todosEl) todosEl.checked = all.every(function(c) { return c.checked; });
+      updateUrgentChart();
+    });
+  });
+
+  updateUrgentChart();
+}
+
+function updateUrgentChart() {
+  var selectedM = Array.from(document.querySelectorAll('.urgent-municipio-cb:checked')).map(function(cb) { return cb.value; });
+  var selectedO = Array.from(document.querySelectorAll('.urgent-orgao-cb:checked')).map(function(cb) { return cb.value; });
+
+  var byOrgao = {};
+  processosData.filter(function(p) { return p.prioridade === 'urgente' && selectedM.includes(p.municipio); }).forEach(function(p) {
+    byOrgao[p.orgao] = (byOrgao[p.orgao] || 0) + 1;
+  });
+
+  var filtered = Object.entries(byOrgao).filter(function(e) { return selectedO.length === 0 || selectedO.includes(e[0]); }).sort(function(a, b) { return b[1] - a[1]; });
+  var maxVal = filtered.length ? Math.max.apply(null, filtered.map(function(e) { return e[1]; })) : 1;
+
+  var barsEl = document.getElementById('urgentChartBars');
+  var labelsEl = document.getElementById('urgentBottomLabels');
+
+  if (barsEl) {
+    barsEl.innerHTML = filtered.map(function(item) {
+      var h = (item[1] / maxVal) * 100;
+      return '<div class="chart-bar"><div class="bar-quantity">' + item[1] + '</div><div class="bar-fill" style="height: ' + h + '%; background: #dc3545;"></div></div>';
+    }).join('');
+  }
+
+  if (labelsEl) {
+    labelsEl.innerHTML = filtered.map(function(e) { return '<div class="bar-label">' + e[0] + '</div>'; }).join('');
+  }
+
+  // Atualizar labels dos triggers
+  var mCbs = document.querySelectorAll('.urgent-municipio-cb');
+  var mChecked = document.querySelectorAll('.urgent-municipio-cb:checked').length;
+  var mTrigger = document.getElementById('urgentMunicipioTrigger');
+  if (mTrigger) mTrigger.textContent = (mChecked === mCbs.length ? 'Todos' : mChecked + '/' + mCbs.length) + ' ▼';
+
+  var oCbs = document.querySelectorAll('.urgent-orgao-cb');
+  var oChecked = document.querySelectorAll('.urgent-orgao-cb:checked').length;
+  var oTrigger = document.getElementById('urgentOrgaoTrigger');
+  if (oTrigger) oTrigger.textContent = (oChecked === oCbs.length ? 'Todos' : oChecked + '/' + oCbs.length) + ' ▼';
 }
 
 function renderProcessList(activeProcess) {
