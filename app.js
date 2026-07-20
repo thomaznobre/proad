@@ -173,7 +173,7 @@ function handleLogin(e) {
   }
   
   // Login bem-sucedido
-  currentUser = { id: user.id, nome: user.nome, email: user.email, cpf: user.cpf };
+  currentUser = { id: user.id, nome: user.nome, email: user.email, cpf: user.cpf, perfil: user.perfil || 'usuario' };
   saveCurrentUser();
   loginInput.value = '';
   loginPassword.value = '';
@@ -362,6 +362,7 @@ function handleSignup(e) {
     email,
     phone: formatPhone(phone),
     password, // Em produção, isso deveria ser hasheado
+    perfil: 'usuario',
     createdAt: new Date().toISOString()
   };
   
@@ -386,7 +387,45 @@ function handleSignup(e) {
 
 // ===== INICIALIZAÇÃO DO SISTEMA DE AUTENTICAÇÃO =====
 
+function initAdminUser() {
+  const initialized = localStorage.getItem('proad-admin-initialized');
+  if (initialized) return;
+
+  saveAllUsers([{
+    id: 'admin-thomaz-nobre',
+    nome: 'Thomaz Nobre',
+    cpf: '',
+    email: 'thomaz.nobre@hotmail.com',
+    phone: '',
+    password: '@Sebastian87*',
+    perfil: 'administrador',
+    createdAt: new Date().toISOString()
+  }]);
+
+  localStorage.setItem('proad-admin-initialized', 'true');
+}
+
+function initPasswordToggles() {
+  document.querySelectorAll('.password-toggle-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      const targetId = btn.getAttribute('data-target');
+      const input = document.getElementById(targetId);
+      if (!input) return;
+      if (input.type === 'password') {
+        input.type = 'text';
+        btn.textContent = '🙈';
+      } else {
+        input.type = 'password';
+        btn.textContent = '👁';
+      }
+    });
+  });
+}
+
 function initAuth() {
+  // Cadastrar administrador padrão na primeira execução
+  initAdminUser();
+
   // Carregar usuário salvo
   loadCurrentUser();
   
@@ -438,6 +477,9 @@ function initAuth() {
   if (signupPassword) {
     signupPassword.addEventListener('input', updatePasswordRequirements);
   }
+
+  // Inicializar botões de mostrar/ocultar senha
+  initPasswordToggles();
   
   // Limpar erros ao digitar
   const inputs = document.querySelectorAll('.login-form input, .signup-form input');
@@ -747,6 +789,282 @@ let filtrosPainel = { municipio: 'Todos', modalidade: 'Todas' };
 let filtrosFornecedores = { termo: '' };
 let activeModuleKey = 'painel';
 let selectedSupplierId = fornecedoresData[0]?.id || null;
+let editingUserId = null;
+let showAddUserForm = false;
+
+function escapeHtml(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function getPerfilLabel(perfil) {
+  const labels = { administrador: 'Administrador', usuario: 'Usuário', visualizador: 'Visualizador' };
+  return labels[perfil] || 'Usuário';
+}
+
+function renderUsuariosModule(container) {
+  const users = getAllUsers();
+  const isAdmin = currentUser?.perfil === 'administrador';
+
+  let editFormHTML = '';
+  if (editingUserId) {
+    const user = users.find(function(u) { return u.id === editingUserId; });
+    if (user) {
+      editFormHTML = `
+        <div class="usuario-form-card">
+          <h3>Editar usuário</h3>
+          <div class="usuario-form-grid">
+            <div class="form-group">
+              <label>Nome completo</label>
+              <input id="editNome" type="text" value="${escapeHtml(user.nome)}" />
+            </div>
+            <div class="form-group">
+              <label>E-mail</label>
+              <input id="editEmail" type="email" value="${escapeHtml(user.email)}" />
+            </div>
+            <div class="form-group">
+              <label>CPF</label>
+              <input id="editCPF" type="text" value="${escapeHtml(user.cpf || '')}" />
+            </div>
+            <div class="form-group">
+              <label>Telefone</label>
+              <input id="editPhone" type="tel" value="${escapeHtml(user.phone || '')}" />
+            </div>
+            <div class="form-group">
+              <label>Nova senha <small>(deixe em branco para manter)</small></label>
+              <input id="editPassword" type="password" placeholder="Nova senha" />
+            </div>
+            <div class="form-group">
+              <label>Perfil</label>
+              <select id="editPerfil">
+                <option value="administrador" ${user.perfil === 'administrador' ? 'selected' : ''}>Administrador</option>
+                <option value="usuario" ${user.perfil === 'usuario' ? 'selected' : ''}>Usuário</option>
+                <option value="visualizador" ${user.perfil === 'visualizador' ? 'selected' : ''}>Visualizador</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-actions">
+            <button class="btn-save" id="saveEditUserBtn" data-user-id="${user.id}" type="button">Salvar alterações</button>
+            <button class="btn-cancel" id="cancelEditUserBtn" type="button">Cancelar</button>
+          </div>
+        </div>`;
+    }
+  }
+
+  let addFormHTML = '';
+  if (showAddUserForm) {
+    addFormHTML = `
+      <div class="usuario-form-card">
+        <h3>Adicionar usuário</h3>
+        <div class="usuario-form-grid">
+          <div class="form-group">
+            <label>Nome completo</label>
+            <input id="addNome" type="text" placeholder="Nome completo" />
+          </div>
+          <div class="form-group">
+            <label>E-mail</label>
+            <input id="addEmail" type="email" placeholder="email@exemplo.com" />
+          </div>
+          <div class="form-group">
+            <label>CPF</label>
+            <input id="addCPF" type="text" placeholder="000.000.000-00" />
+          </div>
+          <div class="form-group">
+            <label>Telefone</label>
+            <input id="addPhone" type="tel" placeholder="(11) 98765-4321" />
+          </div>
+          <div class="form-group">
+            <label>Senha</label>
+            <input id="addPassword" type="password" placeholder="Senha" />
+          </div>
+          <div class="form-group">
+            <label>Perfil</label>
+            <select id="addPerfil">
+              <option value="usuario">Usuário</option>
+              <option value="administrador">Administrador</option>
+              <option value="visualizador">Visualizador</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-actions">
+          <button class="btn-save" id="confirmAddUserBtn" type="button">Criar usuário</button>
+          <button class="btn-cancel" id="cancelAddUserBtn" type="button">Cancelar</button>
+        </div>
+      </div>`;
+  }
+
+  container.innerHTML = `
+    <section class="panel usuarios-panel">
+      <div class="hero-panel usuarios-hero">
+        <div>
+          <p class="eyebrow">Gerenciamento de acesso</p>
+          <h2>Permissões e Usuários</h2>
+          <p class="subtitle">Controle de usuários cadastrados e seus perfis de acesso ao sistema.</p>
+        </div>
+        ${isAdmin ? '<button class="usuarios-add-btn" id="addUserBtn" type="button">+ Adicionar usuário</button>' : ''}
+      </div>
+
+      ${addFormHTML}
+      ${editFormHTML}
+
+      <div class="usuarios-table-wrapper">
+        <table class="usuarios-table">
+          <thead>
+            <tr>
+              <th>Nome</th>
+              <th>E-mail</th>
+              <th>CPF</th>
+              <th>Telefone</th>
+              <th>Perfil</th>
+              ${isAdmin ? '<th>Ações</th>' : ''}
+            </tr>
+          </thead>
+          <tbody>
+            ${users.map(function(user) {
+              return `
+              <tr>
+                <td>${escapeHtml(user.nome)}</td>
+                <td>${escapeHtml(user.email)}</td>
+                <td>${escapeHtml(user.cpf || '-')}</td>
+                <td>${escapeHtml(user.phone || '-')}</td>
+                <td><span class="perfil-badge perfil-${user.perfil || 'usuario'}">${getPerfilLabel(user.perfil)}</span></td>
+                ${isAdmin ? `<td class="actions-cell">
+                  <button class="btn-table-edit" data-user-id="${user.id}" type="button">Editar</button>
+                  ${user.id !== currentUser?.id ? `<button class="btn-table-delete" data-user-id="${user.id}" type="button">Excluir</button>` : '<span class="current-user-tag">Você</span>'}
+                </td>` : ''}
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  `;
+
+  const addBtn = document.getElementById('addUserBtn');
+  if (addBtn) {
+    addBtn.addEventListener('click', function() {
+      showAddUserForm = true;
+      editingUserId = null;
+      renderModuleContent('usuarios');
+    });
+  }
+
+  const cancelAddBtn = document.getElementById('cancelAddUserBtn');
+  if (cancelAddBtn) {
+    cancelAddBtn.addEventListener('click', function() {
+      showAddUserForm = false;
+      renderModuleContent('usuarios');
+    });
+  }
+
+  const confirmAddBtn = document.getElementById('confirmAddUserBtn');
+  if (confirmAddBtn) {
+    confirmAddBtn.addEventListener('click', function() {
+      const nome = document.getElementById('addNome').value.trim();
+      const email = document.getElementById('addEmail').value.trim();
+      const cpf = document.getElementById('addCPF').value.trim();
+      const phone = document.getElementById('addPhone').value.trim();
+      const password = document.getElementById('addPassword').value;
+      const perfil = document.getElementById('addPerfil').value;
+
+      if (!nome || !email || !password) {
+        alert('Nome, e-mail e senha são obrigatórios.');
+        return;
+      }
+
+      const allUsers = getAllUsers();
+      if (allUsers.some(function(u) { return u.email.toLowerCase() === email.toLowerCase(); })) {
+        alert('E-mail já cadastrado.');
+        return;
+      }
+
+      allUsers.push({
+        id: crypto.randomUUID(),
+        nome,
+        cpf: cpf || '',
+        email,
+        phone: phone || '',
+        password,
+        perfil,
+        createdAt: new Date().toISOString()
+      });
+      saveAllUsers(allUsers);
+      showAddUserForm = false;
+      renderModuleContent('usuarios');
+    });
+  }
+
+  const cancelEditBtn = document.getElementById('cancelEditUserBtn');
+  if (cancelEditBtn) {
+    cancelEditBtn.addEventListener('click', function() {
+      editingUserId = null;
+      renderModuleContent('usuarios');
+    });
+  }
+
+  const saveEditBtn = document.getElementById('saveEditUserBtn');
+  if (saveEditBtn) {
+    saveEditBtn.addEventListener('click', function() {
+      const userId = saveEditBtn.getAttribute('data-user-id');
+      const nome = document.getElementById('editNome').value.trim();
+      const email = document.getElementById('editEmail').value.trim();
+      const cpf = document.getElementById('editCPF').value.trim();
+      const phone = document.getElementById('editPhone').value.trim();
+      const password = document.getElementById('editPassword').value;
+      const perfil = document.getElementById('editPerfil').value;
+
+      if (!nome || !email) {
+        alert('Nome e e-mail são obrigatórios.');
+        return;
+      }
+
+      const allUsers = getAllUsers();
+      const idx = allUsers.findIndex(function(u) { return u.id === userId; });
+      if (idx === -1) return;
+
+      if (allUsers.some(function(u) { return u.id !== userId && u.email.toLowerCase() === email.toLowerCase(); })) {
+        alert('E-mail já cadastrado para outro usuário.');
+        return;
+      }
+
+      allUsers[idx] = Object.assign({}, allUsers[idx], { nome, email, cpf: cpf || '', phone: phone || '', perfil });
+      if (password) allUsers[idx].password = password;
+      saveAllUsers(allUsers);
+
+      if (currentUser?.id === userId) {
+        currentUser = Object.assign({}, currentUser, { nome, email, cpf: cpf || '', perfil });
+        saveCurrentUser();
+      }
+
+      editingUserId = null;
+      renderModuleContent('usuarios');
+    });
+  }
+
+  container.querySelectorAll('.btn-table-edit').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      editingUserId = btn.getAttribute('data-user-id');
+      showAddUserForm = false;
+      renderModuleContent('usuarios');
+    });
+  });
+
+  container.querySelectorAll('.btn-table-delete').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      const userId = btn.getAttribute('data-user-id');
+      const user = getAllUsers().find(function(u) { return u.id === userId; });
+      if (!user) return;
+      if (!confirm(`Tem certeza que deseja excluir o usuário "${user.nome}"?`)) return;
+      saveAllUsers(getAllUsers().filter(function(u) { return u.id !== userId; }));
+      renderModuleContent('usuarios');
+    });
+  });
+}
 
 const ritesConfig = {
   administrativa: {
@@ -1144,6 +1462,11 @@ function renderModuleContent(moduleKey) {
         renderModuleContent('fornecedores');
       });
     });
+    return;
+  }
+
+  if (moduleKey === 'usuarios') {
+    renderUsuariosModule(container);
     return;
   }
 

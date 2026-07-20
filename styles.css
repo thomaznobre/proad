@@ -1329,3 +1329,264 @@ input[type="search"] {
 .logout-btn:hover {
   background: rgba(18, 48, 77, 0.08);
 }
+
+/* ===== BOTÃO MOSTRAR/OCULTAR SENHA ===== */
+
+.password-field-wrapper {
+  position: relative;
+}
+
+.password-field-wrapper input {
+  padding-right: 3rem !important;
+}
+
+.password-toggle-btn {
+  position: absolute;
+  right: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0.25rem;
+  color: var(--muted);
+  font-size: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  transition: color 0.2s;
+}
+
+.password-toggle-btn:hover {
+  color: var(--accent);
+}
+
+/* ===== MÓDULO USUÁRIOS ===== */
+
+.usuarios-hero {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.usuarios-add-btn {
+  padding: 0.7rem 1.4rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 0.7rem;
+  cursor: pointer;
+  transition: background 0.2s;
+  white-space: nowrap;
+  align-self: center;
+}
+
+.usuarios-add-btn:hover {
+  background: #000078;
+}
+
+.usuario-form-card {
+  background: var(--panel);
+  border: 2px solid var(--border);
+  border-radius: 1rem;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.usuario-form-card h3 {
+  margin: 0 0 1.25rem;
+  font-size: 1.1rem;
+  color: var(--text);
+}
+
+.usuario-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.usuario-form-grid .form-group {
+  margin-bottom: 0;
+}
+
+.usuario-form-grid .form-group label {
+  font-size: 0.85rem;
+}
+
+.usuario-form-grid .form-group label small {
+  font-weight: 400;
+  color: var(--muted);
+}
+
+.usuario-form-grid input,
+.usuario-form-grid select {
+  width: 100%;
+  padding: 0.7rem 0.9rem;
+  border: 1.5px solid var(--border-strong);
+  border-radius: 0.7rem;
+  font-size: 0.95rem;
+  color: var(--text);
+  background: #fff;
+  transition: border-color 0.2s;
+}
+
+.usuario-form-grid input:focus,
+.usuario-form-grid select:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.form-actions {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.btn-save {
+  padding: 0.65rem 1.4rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 0.7rem;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.btn-save:hover {
+  background: #000078;
+}
+
+.btn-cancel {
+  padding: 0.65rem 1.2rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  background: transparent;
+  color: var(--muted);
+  border: 1.5px solid var(--border-strong);
+  border-radius: 0.7rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-cancel:hover {
+  background: var(--bg);
+  color: var(--text);
+}
+
+.usuarios-table-wrapper {
+  overflow-x: auto;
+  border-radius: 0.9rem;
+  border: 1.5px solid var(--border);
+}
+
+.usuarios-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.93rem;
+}
+
+.usuarios-table thead {
+  background: var(--panel-2);
+}
+
+.usuarios-table th {
+  padding: 0.85rem 1rem;
+  text-align: left;
+  font-weight: 600;
+  color: var(--muted);
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-bottom: 1.5px solid var(--border);
+}
+
+.usuarios-table td {
+  padding: 0.85rem 1rem;
+  color: var(--text);
+  border-bottom: 1px solid var(--border);
+}
+
+.usuarios-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.usuarios-table tbody tr:hover td {
+  background: var(--panel-2);
+}
+
+.perfil-badge {
+  display: inline-block;
+  padding: 0.25rem 0.7rem;
+  border-radius: 2rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.perfil-administrador {
+  background: rgba(1, 1, 94, 0.1);
+  color: var(--accent);
+}
+
+.perfil-usuario {
+  background: rgba(31, 139, 87, 0.12);
+  color: var(--success);
+}
+
+.perfil-visualizador {
+  background: rgba(81, 98, 122, 0.12);
+  color: var(--muted);
+}
+
+.actions-cell {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.btn-table-edit {
+  padding: 0.35rem 0.85rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  background: transparent;
+  color: var(--accent);
+  border: 1.5px solid var(--accent);
+  border-radius: 0.5rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-table-edit:hover {
+  background: var(--accent);
+  color: #fff;
+}
+
+.btn-table-delete {
+  padding: 0.35rem 0.85rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  background: transparent;
+  color: #c62828;
+  border: 1.5px solid #c62828;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-table-delete:hover {
+  background: #c62828;
+  color: #fff;
+}
+
+.current-user-tag {
+  font-size: 0.78rem;
+  color: var(--muted);
+  font-style: italic;
+}
