@@ -767,6 +767,32 @@ const fornecedoresData = [
   }
 ].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
 
+const processosData = [
+  { id: '001', titulo: 'Processo 001', prioridade: 'urgente', orgao: 'Secretaria de Educação', municipio: 'Bom Conselho/PE' },
+  { id: '002', titulo: 'Processo 002', prioridade: 'alta', orgao: 'Secretaria de Educação', municipio: 'Bom Conselho/PE' },
+  { id: '003', titulo: 'Processo 003', prioridade: 'urgente', orgao: 'Secretaria de Saúde', municipio: 'Bom Conselho/PE' },
+  { id: '004', titulo: 'Processo 004', prioridade: 'média', orgao: 'Secretaria de Saúde', municipio: 'Bom Conselho/PE' },
+  { id: '005', titulo: 'Processo 005', prioridade: 'baixa', orgao: 'Secretaria de Administração', municipio: 'Bom Conselho/PE' },
+  { id: '006', titulo: 'Processo 006', prioridade: 'urgente', orgao: 'Secretaria de Educação', municipio: 'Japaratinga/AL' },
+  { id: '007', titulo: 'Processo 007', prioridade: 'urgente', orgao: 'Secretaria de Infraestrutura', municipio: 'Bom Conselho/PE' },
+  { id: '008', titulo: 'Processo 008', prioridade: '-', orgao: 'Secretaria de Administração', municipio: 'Japaratinga/AL' },
+  { id: '009', titulo: 'Processo 009', prioridade: 'alta', orgao: 'Secretaria de Saúde', municipio: 'Marechal Deodoro/AL' },
+  { id: '010', titulo: 'Processo 010', prioridade: 'urgente', orgao: 'Secretaria de Educação', municipio: 'Bom Conselho/PE' },
+  { id: '011', titulo: 'Processo 011', prioridade: 'média', orgao: 'Secretaria de Infraestrutura', municipio: 'Marechal Deodoro/AL' },
+  { id: '012', titulo: 'Processo 012', prioridade: 'urgente', orgao: 'Secretaria de Saúde', municipio: 'Bom Conselho/PE' },
+  { id: '013', titulo: 'Processo 013', prioridade: 'baixa', orgao: 'Secretaria de Educação', municipio: 'Japaratinga/AL' },
+  { id: '014', titulo: 'Processo 014', prioridade: 'alta', orgao: 'Secretaria de Administração', municipio: 'Matriz de Camaragibe/AL' },
+  { id: '015', titulo: 'Processo 015', prioridade: '-', orgao: 'Secretaria de Infraestrutura', municipio: 'São Miguel dos Campos/AL' }
+];
+
+const orgaosPorMunicipio = {
+  'Bom Conselho/PE': ['Secretaria de Educação', 'Secretaria de Saúde', 'Secretaria de Administração', 'Secretaria de Infraestrutura'],
+  'Japaratinga/AL': ['Secretaria de Educação', 'Secretaria de Administração', 'Secretaria de Saúde'],
+  'Marechal Deodoro/AL': ['Secretaria de Saúde', 'Secretaria de Infraestrutura', 'Secretaria de Educação'],
+  'Matriz de Camaragibe/AL': ['Secretaria de Administração', 'Secretaria de Educação'],
+  'São Miguel dos Campos/AL': ['Secretaria de Infraestrutura', 'Secretaria de Saúde']
+};
+
 const chartData = [
   { modalidade: 'Pregão Eletrônico', valor: 680000, quantidade: 12 },
   { modalidade: 'Registro de Preços', valor: 420000, quantidade: 8 },
@@ -785,7 +811,7 @@ const municipios = [
 
 const modalidades = ['Todas', ...Array.from(new Set(chartData.map((item) => item.modalidade)))];
 let activeChartBar = null;
-let filtrosPainel = { municipio: 'Todos', modalidade: 'Todas' };
+let filtrosPainel = { municipio: 'Todos', modalidade: 'Todas', orgaosUrgentes: [] };
 let filtrosFornecedores = { termo: '' };
 let activeModuleKey = 'painel';
 let selectedSupplierId = fornecedoresData[0]?.id || null;
@@ -1538,8 +1564,137 @@ function renderModuleContent(moduleKey) {
           ${filteredData.map((item) => `<div class="bar-label">${item.modalidade}</div>`).join('')}
         </div>
       </div>
+
+      <div class="charts-row">
+        <div class="chart-card donut-card">
+          <h3>Prioridades dos Processos</h3>
+          <div class="donut-wrapper">
+            <div class="donut-chart">
+              <svg viewBox="0 0 200 200" class="donut-svg">
+                <circle cx="100" cy="100" r="90" fill="none" stroke-width="35" stroke-dasharray="0 0" class="donut-segment" data-priority="urgente"></circle>
+                <circle cx="100" cy="100" r="90" fill="none" stroke-width="35" stroke-dasharray="0 0" class="donut-segment" data-priority="alta" style="transform: rotate(-90deg); transform-origin: 100px 100px;"></circle>
+                <circle cx="100" cy="100" r="90" fill="none" stroke-width="35" stroke-dasharray="0 0" class="donut-segment" data-priority="média"></circle>
+                <circle cx="100" cy="100" r="90" fill="none" stroke-width="35" stroke-dasharray="0 0" class="donut-segment" data-priority="baixa"></circle>
+                <circle cx="100" cy="100" r="90" fill="none" stroke-width="35" stroke-dasharray="0 0" class="donut-segment" data-priority="-"></circle>
+              </svg>
+              <div class="donut-center">
+                <div class="donut-total" id="processesTotal">0</div>
+                <div class="donut-label">Processos</div>
+              </div>
+            </div>
+          </div>
+          <div class="donut-legend">
+            ${['urgente', 'alta', 'média', 'baixa', '-'].map((priority) => {
+              const count = processosData.filter((p) => p.prioridade === priority).length;
+              const colorClass = 'priority-' + priority.replace(/[^a-z0-9]/gi, 'sem');
+              const label = priority === '-' ? 'Sem prioridade' : priority.charAt(0).toUpperCase() + priority.slice(1);
+              return `<div class="legend-item"><span class="legend-color ${colorClass}"></span><span>${label}: ${count}</span></div>`;
+            }).join('')}
+          </div>
+        </div>
+
+        <div class="chart-card urgent-card">
+          <div class="urgent-header">
+            <h3>Demandas URGENTE por Órgão</h3>
+            <div class="urgent-filter">
+              <label>Filtrar por órgão:</label>
+              <select id="urgentOrgaoFilter" multiple size="3"></select>
+            </div>
+          </div>
+          <div class="chart-wrapper">
+            <div class="chart-axis">
+              <div class="chart-grid">
+                <span data-label="15"></span>
+                <span data-label="10"></span>
+                <span data-label="5"></span>
+                <span data-label="0"></span>
+              </div>
+              <div class="chart-bars" id="urgentChartBars">
+              </div>
+            </div>
+          </div>
+          <div class="chart-bottom-labels" id="urgentBottomLabels"></div>
+        </div>
+      </div>
     </section>
   `;
+
+  // Atualizar gráfico de rosca de prioridades
+  const totalProcesses = processosData.length;
+  document.getElementById('processesTotal').textContent = totalProcesses;
+
+  const priorityColors = {
+    'urgente': '#dc3545',
+    'alta': '#fd7e14',
+    'média': '#ffc107',
+    'baixa': '#28a745',
+    '-': '#6c757d'
+  };
+
+  const priorityCounts = {
+    'urgente': processosData.filter((p) => p.prioridade === 'urgente').length,
+    'alta': processosData.filter((p) => p.prioridade === 'alta').length,
+    'média': processosData.filter((p) => p.prioridade === 'média').length,
+    'baixa': processosData.filter((p) => p.prioridade === 'baixa').length,
+    '-': processosData.filter((p) => p.prioridade === '-').length
+  };
+
+  let currentAngle = 0;
+  Object.keys(priorityCounts).forEach((priority) => {
+    const count = priorityCounts[priority];
+    const percent = (count / totalProcesses) * 100;
+    const circumference = 2 * Math.PI * 90;
+    const strokeDasharray = (percent / 100) * circumference + ' ' + circumference;
+    const segment = document.querySelector('.donut-segment[data-priority="' + priority + '"]');
+    if (segment) {
+      segment.style.stroke = priorityColors[priority];
+      segment.style.strokeDasharray = strokeDasharray;
+      segment.style.transform = 'rotate(' + currentAngle + 'deg)';
+      segment.style.transformOrigin = '100px 100px';
+      currentAngle += (percent / 100) * 360;
+    }
+  });
+
+  // Filtro de órgãos para gráfico de urgente
+  const urgentOrgaoFilter = document.getElementById('urgentOrgaoFilter');
+  if (urgentOrgaoFilter) {
+    const allOrgaos = Array.from(new Set(processosData.map((p) => p.orgao))).sort();
+    urgentOrgaoFilter.innerHTML = allOrgaos.map((orgao) => '<option value="' + orgao + '">' + orgao + '</option>').join('');
+    
+    // Selecionar todos por padrão
+    Array.from(urgentOrgaoFilter.options).forEach((opt) => opt.selected = true);
+    
+    urgentOrgaoFilter.addEventListener('change', () => {
+      renderModuleContent('painel');
+    });
+  }
+
+  // Renderizar gráfico de urgente por órgão
+  const selectedOrgaos = Array.from(document.getElementById('urgentOrgaoFilter').selectedOptions || []).map((opt) => opt.value);
+  const urgentByOrgao = {};
+  processosData.filter((p) => p.prioridade === 'urgente').forEach((p) => {
+    if (!urgentByOrgao[p.orgao]) urgentByOrgao[p.orgao] = 0;
+    urgentByOrgao[p.orgao]++;
+  });
+
+  const filteredUrgent = Object.entries(urgentByOrgao)
+    .filter(([orgao]) => selectedOrgaos.length === 0 || selectedOrgaos.includes(orgao))
+    .sort((a, b) => b[1] - a[1]);
+
+  const maxUrgent = filteredUrgent.length ? Math.max(...filteredUrgent.map((item) => item[1])) : 1;
+
+  const urgentChartBars = document.getElementById('urgentChartBars');
+  if (urgentChartBars) {
+    urgentChartBars.innerHTML = filteredUrgent.map((item) => {
+      const height = (item[1] / maxUrgent) * 100;
+      return '<div class="chart-bar"><div class="bar-quantity">' + item[1] + '</div><div class="bar-fill" style="height: ' + height + '%; background: #dc3545;"></div></div>';
+    }).join('');
+  }
+
+  const urgentBottomLabels = document.getElementById('urgentBottomLabels');
+  if (urgentBottomLabels) {
+    urgentBottomLabels.innerHTML = filteredUrgent.map(([orgao]) => '<div class="bar-label">' + orgao + '</div>').join('');
+  }
 
   const municipioFilter = document.getElementById('municipioFilter');
   const modalidadeFilter = document.getElementById('modalidadeFilter');
