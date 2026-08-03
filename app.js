@@ -3157,7 +3157,11 @@ function persistState() {
 function init() {
   syncPresenceWithApi(true).catch(() => {});
   bindTopbarMessages();
-  render();
+  try {
+    render();
+  } catch (error) {
+    recoverFromStartupFailure(error);
+  }
   bindSidebar();
   bindModuleNavigation();
 
@@ -3174,6 +3178,41 @@ function init() {
   const resetBtn = document.getElementById('resetBtn');
   if (resetBtn) {
     resetBtn.addEventListener('click', resetProcess);
+  }
+}
+
+function renderSidebarNavigation() {
+  const nav = document.querySelector('.sidebar-nav');
+  if (!nav) {
+    return;
+  }
+
+  nav.innerHTML = moduleConfig.map((module) => `
+    <button class="nav-item ${module.key === activeModuleKey ? 'active' : ''}" type="button">
+      <span class="nav-icon">${module.icon}</span>
+      <span class="nav-label">${module.label}</span>
+    </button>
+  `).join('');
+}
+
+function recoverFromStartupFailure(error) {
+  console.error('Falha ao inicializar a interface. Estado será recriado.', error);
+
+  try {
+    state = buildInitialState();
+    selectedProcessId = state.processes[0]?.id || null;
+    activeModuleKey = 'painel';
+    state.painelFilters = normalizePainelFilters(state.painelFilters, state.licitacoesDemandas, state.modalidades);
+    filtrosPainel = state.painelFilters;
+    persistState();
+    render();
+  } catch (recoveryError) {
+    console.error('Falha ao recuperar interface após erro de inicialização.', recoveryError);
+    renderSidebarNavigation();
+    const container = document.getElementById('moduleContent');
+    if (container) {
+      container.innerHTML = '<section class="panel"><p class="empty-state">Não foi possível carregar a tela. Recarregue a página para tentar novamente.</p></section>';
+    }
   }
 }
 
@@ -3961,25 +4000,23 @@ function getSelectedProcess() {
 }
 
 function render() {
-  if (!state.processes.length) {
+  if (!Array.isArray(state.processes) || !state.processes.length) {
     state.processes = [buildProcess('administrativa', 'Processo 001')];
     selectedProcessId = state.processes[0].id;
     persistState();
   }
 
-  const process = getSelectedProcess();
-  if (!process) {
-    return;
-  }
+  renderSidebarNavigation();
 
-  const nav = document.querySelector('.sidebar-nav');
-  if (nav) {
-    nav.innerHTML = moduleConfig.map((module) => `
-      <button class="nav-item ${module.key === activeModuleKey ? 'active' : ''}" type="button">
-        <span class="nav-icon">${module.icon}</span>
-        <span class="nav-label">${module.label}</span>
-      </button>
-    `).join('');
+  let process = getSelectedProcess();
+  if (!process) {
+    state.processes = [buildProcess('administrativa', 'Processo 001')];
+    selectedProcessId = state.processes[0].id;
+    persistState();
+    process = getSelectedProcess();
+    if (!process) {
+      return;
+    }
   }
 
   renderModuleContent(activeModuleKey);
