@@ -515,7 +515,31 @@ function initPasswordToggles() {
   document.body.dataset.passwordToggleBound = '1';
 }
 
+function handleStartupResetQuery() {
+  try {
+    const url = new URL(window.location.href);
+    const resetFlag = String(url.searchParams.get('reset') || '').trim();
+    if (resetFlag !== '1') {
+      return false;
+    }
+
+    localStorage.removeItem('proad-state');
+    localStorage.removeItem('proad-current-user');
+
+    url.searchParams.delete('reset');
+    window.location.replace(url.toString());
+    return true;
+  } catch (error) {
+    console.error('Falha ao processar reset de inicialização por URL.', error);
+    return false;
+  }
+}
+
 function initAuth() {
+  if (handleStartupResetQuery()) {
+    return;
+  }
+
   // Cadastrar administrador padrão na primeira execução
   initAdminUser();
 
