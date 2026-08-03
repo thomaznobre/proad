@@ -3052,8 +3052,29 @@ function loadState() {
     const parsed = JSON.parse(saved);
     const municipalStructure = normalizeMunicipalStructure(parsed.municipalStructure);
     const derivedSetores = getAllSetoresFromStructureData(municipalStructure);
+    const parsedProcesses = Array.isArray(parsed.processes)
+      ? parsed.processes.map((process) => {
+        const processId = String(process?.id || '').trim() || crypto.randomUUID();
+        const riteKey = ritesConfig[process?.riteKey] ? process.riteKey : 'administrativa';
+        const documents = Array.isArray(process?.documents) && process.documents.length
+          ? process.documents
+          : buildDocuments(ritesConfig[riteKey], processId);
+
+        return {
+          ...process,
+          id: processId,
+          riteKey,
+          documents
+        };
+      })
+      : [];
+
+    const safeProcesses = parsedProcesses.length
+      ? parsedProcesses
+      : [buildProcess('administrativa', 'Processo 001')];
+
     return {
-      processes: parsed.processes?.map((process) => ({ ...process, documents: process.documents || buildDocuments(ritesConfig[process.riteKey], process.id) })) || [],
+      processes: safeProcesses,
       licitacoesDemandas: Array.isArray(parsed.licitacoesDemandas) ? parsed.licitacoesDemandas : [],
       municipalStructure,
       setoresDestino: derivedSetores.length ? derivedSetores : normalizeSetoresDestino(parsed.setoresDestino),
@@ -3941,7 +3962,9 @@ function getSelectedProcess() {
 
 function render() {
   if (!state.processes.length) {
-    return;
+    state.processes = [buildProcess('administrativa', 'Processo 001')];
+    selectedProcessId = state.processes[0].id;
+    persistState();
   }
 
   const process = getSelectedProcess();
