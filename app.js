@@ -3203,6 +3203,12 @@ function init() {
   if (resetBtn) {
     resetBtn.addEventListener('click', resetProcess);
   }
+
+  // Valida montagem inicial para evitar tela vazia por estado/localStorage inconsistente.
+  ensureMainUiMounted();
+  window.requestAnimationFrame(() => {
+    ensureMainUiMounted();
+  });
 }
 
 function renderSidebarNavigation() {
@@ -3240,6 +3246,36 @@ function recoverFromStartupFailure(error) {
   }
 }
 
+function ensureMainUiMounted() {
+  const nav = document.querySelector('.sidebar-nav');
+  const container = document.getElementById('moduleContent');
+  const navItemsCount = nav ? nav.querySelectorAll('.nav-item').length : 0;
+  const hasContainerContent = Boolean(container && container.children.length > 0);
+
+  if (navItemsCount > 0 && hasContainerContent) {
+    return;
+  }
+
+  console.warn('Interface principal não montou corretamente. Aplicando recuperação forçada.');
+
+  try {
+    state = buildInitialState();
+    selectedProcessId = state.processes[0]?.id || null;
+    activeModuleKey = 'painel';
+    state.painelFilters = normalizePainelFilters(state.painelFilters, state.licitacoesDemandas, state.modalidades);
+    filtrosPainel = state.painelFilters;
+    persistState();
+    render();
+    bindModuleNavigation();
+  } catch (error) {
+    console.error('Falha na recuperação forçada da interface.', error);
+    renderSidebarNavigation();
+    if (container) {
+      container.innerHTML = '<section class="panel"><p class="empty-state">Não foi possível carregar os módulos. Acesse novamente com ?reset=1 no final da URL.</p></section>';
+    }
+  }
+}
+
 function bindModuleNavigation() {
   document.querySelectorAll('.nav-item').forEach((button, index) => {
     button.addEventListener('click', () => {
@@ -3254,6 +3290,10 @@ function bindModuleNavigation() {
 function bindSidebar() {
   const toggleBtn = document.getElementById('toggleSidebarBtn');
   const sidebar = document.getElementById('sidebar');
+
+  if (!toggleBtn || !sidebar) {
+    return;
+  }
 
   toggleBtn.addEventListener('click', () => {
     sidebar.classList.toggle('collapsed');
