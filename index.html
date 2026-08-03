@@ -3,8 +3,8 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Proad — Protocolo e Tramitação Processual</title>
-    <link rel="stylesheet" href="styles.css" />
+    <title>Proad — Sistema de gerenciamento de contratações públicas</title>
+    <link rel="stylesheet" href="styles.css?v=20260720" />
   </head>
   <body>
     <!-- Tela de Login -->
@@ -13,7 +13,7 @@
         <div class="login-brand">
           <div class="login-icon">P</div>
           <h1>Proad</h1>
-          <p>Sistema de Protocolo e Tramitação Processual</p>
+          <p>Sistema de gerenciamento de contratações públicas</p>
         </div>
 
         <form id="loginForm" class="login-form">
@@ -112,6 +112,62 @@
       </div>
     </div>
 
+    <!-- Modal de Protocolo de Demanda -->
+    <div id="protocolModal" class="modal-overlay">
+      <div class="modal-content protocol-modal-content">
+        <button id="closeProtocolModal" class="modal-close" type="button">✕</button>
+        <form id="protocolForm" class="protocol-form">
+          <h2>Protocolar demanda</h2>
+
+          <div class="form-group">
+            <label for="protocolMunicipio">Município</label>
+            <select id="protocolMunicipio" required></select>
+          </div>
+
+          <div class="form-group">
+            <label for="protocolOrgao">Secretaria de destino</label>
+            <select id="protocolOrgao" required></select>
+          </div>
+
+          <div class="form-group">
+            <label for="protocolObjeto">Objeto da demanda</label>
+            <input id="protocolObjeto" type="text" placeholder="Descreva o objeto da demanda" required />
+          </div>
+
+          <div class="form-group">
+            <label for="protocolDocumento">Documento inicial (ofício, memorando, DFD)</label>
+            <input id="protocolDocumento" type="file" accept=".pdf,.doc,.docx,.odt,.txt,.png,.jpg,.jpeg" />
+          </div>
+
+          <div class="form-group">
+            <label for="protocolSetor">Setor da secretaria (obrigatório)</label>
+            <select id="protocolSetor" required></select>
+          </div>
+
+          <button id="protocolSubmitBtn" class="protocol-submit-btn" type="submit">Protocolar</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Modal de Resumo do Protocolo -->
+    <div id="protocolSummaryModal" class="modal-overlay">
+      <div class="modal-content protocol-summary-content">
+        <button id="closeProtocolSummaryModal" class="modal-close" type="button">✕</button>
+        <div class="protocol-summary-box">
+          <h2>Demanda protocolada</h2>
+          <div id="protocolSummaryBody"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal de Detalhes da Licitação -->
+    <div id="licitacaoDetailsModal" class="modal-overlay">
+      <div class="modal-content licitacao-details-content">
+        <button id="closeLicitacaoDetailsModal" class="modal-close" type="button">✕</button>
+        <div id="licitacaoDetailsBody"></div>
+      </div>
+    </div>
+
     <!-- Aplicação Principal -->
     <div id="appScreen" class="app-screen" style="display: none;">
     <header class="topbar">
@@ -119,18 +175,26 @@
         <div>
           <div class="topbar-brand-row">
             <button id="homeBtn" class="home-btn" type="button">🏠 Home</button>
-            <p class="eyebrow">Sistema de protocolo</p>
+            <div class="topbar-messages-wrap">
+              <button id="messagesBtn" class="messages-btn" type="button" aria-label="Mensagens" aria-expanded="false">
+                <span class="messages-icon">📥</span>
+                <span class="messages-label">Mensagens</span>
+                <span id="messagesBadge" class="messages-badge" hidden>0</span>
+              </button>
+              <div id="messagesPopover" class="messages-popover" hidden>
+                <div class="messages-popover-head">
+                  <strong>Mensagens</strong>
+                  <small>Prévia</small>
+                </div>
+                <div id="messagesPreviewList" class="messages-preview-list"></div>
+              </div>
+            </div>
+            <p class="eyebrow">Sistema de gerenciamento de contratações públicas</p>
           </div>
-          <h1>Proad</h1>
-          <p class="subtitle">Gestão processual administrativa com ritos pré-definidos e visualização documental em tela dividida.</p>
         </div>
       </div>
       <div class="header-actions">
-        <label class="field">
-          <span>Rito</span>
-          <select id="riteSelect"></select>
-        </label>
-        <button id="newProcessBtn">Protocolar processo</button>
+        <button id="newProcessBtn">Protocolar demanda</button>
         <button id="logoutBtn" class="logout-btn">Sair</button>
       </div>
     </header>
@@ -142,26 +206,6 @@
         </div>
 
         <nav class="sidebar-nav">
-          <button class="nav-item active" type="button">
-            <span class="nav-icon">▣</span>
-            <span class="nav-label">Painel Geral</span>
-          </button>
-          <button class="nav-item" type="button">
-            <span class="nav-icon">⚖</span>
-            <span class="nav-label">Licitações</span>
-          </button>
-          <button class="nav-item" type="button">
-            <span class="nav-icon">📄</span>
-            <span class="nav-label">Gestão de Contratos / ARPs</span>
-          </button>
-          <button class="nav-item" type="button">
-            <span class="nav-icon">🏢</span>
-            <span class="nav-label">Fornecedores</span>
-          </button>
-          <button class="nav-item" type="button">
-            <span class="nav-icon">🔐</span>
-            <span class="nav-label">Permissões e Usuários</span>
-          </button>
         </nav>
       </aside>
 
@@ -171,6 +215,6 @@
     </div>
     </div>
 
-    <script src="app.js"></script>
+    <script src="app.js?v=20260802"></script>
   </body>
 </html>
