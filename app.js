@@ -49,8 +49,23 @@ function getAllUsers() {
 
 function saveAllUsers(users) {
   const normalized = Array.isArray(users) ? users.map(normalizeUser) : [];
-  localStorage.setItem('proad-users', JSON.stringify(normalized));
-  return normalized;
+  const deduped = [];
+  const seenKeys = new Set();
+
+  normalized.forEach((user) => {
+    const emailKey = String(user.email || '').trim().toLowerCase();
+    const cpfKey = String(user.cpf || '').replace(/\D/g, '');
+    const identityKey = emailKey || cpfKey || String(user.id || '').trim();
+    if (!identityKey || seenKeys.has(identityKey)) {
+      return;
+    }
+
+    seenKeys.add(identityKey);
+    deduped.push(user);
+  });
+
+  localStorage.setItem('proad-users', JSON.stringify(deduped));
+  return deduped;
 }
 
 function ensureSeededUsers() {
@@ -185,6 +200,45 @@ function formatCPF(cpf) {
   const clean = cpf.replace(/\D/g, '');
   if (clean.length !== 11) return cpf;
   return clean.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+}
+
+function normalizeAlerts(alerts) {
+  if (!Array.isArray(alerts)) {
+    return [];
+  }
+
+  return alerts
+    .filter((alert) => alert && typeof alert === 'object')
+    .map((alert) => ({
+      ...alert,
+      id: String(alert.id || crypto.randomUUID()),
+      userId: String(alert.userId || '').trim(),
+      demandId: String(alert.demandId || '').trim(),
+      processNumber: String(alert.processNumber || '').trim(),
+      preview: String(alert.preview || '').trim(),
+      createdAt: String(alert.createdAt || new Date().toISOString()),
+      readAt: alert.readAt ? String(alert.readAt) : null
+    }));
+}
+
+function getCurrentUserAlerts() {
+  const alerts = normalizeAlerts(state?.alerts);
+  const currentUserId = String(currentUser?.id || '').trim();
+  if (!currentUserId) {
+    return [];
+  }
+  return alerts.filter((alert) => !alert.userId || alert.userId === currentUserId);
+}
+
+function closeMessagesPopover() {
+  const popover = document.getElementById('messagesPopover');
+  const button = document.getElementById('messagesBtn');
+  if (popover) {
+    popover.hidden = true;
+  }
+  if (button) {
+    button.setAttribute('aria-expanded', 'false');
+  }
 }
 
 function formatPhone(phone) {
@@ -515,31 +569,7 @@ function initPasswordToggles() {
   document.body.dataset.passwordToggleBound = '1';
 }
 
-function handleStartupResetQuery() {
-  try {
-    const url = new URL(window.location.href);
-    const resetFlag = String(url.searchParams.get('reset') || '').trim();
-    if (resetFlag !== '1') {
-      return false;
-    }
-
-    localStorage.removeItem('proad-state');
-    localStorage.removeItem('proad-current-user');
-
-    url.searchParams.delete('reset');
-    window.location.replace(url.toString());
-    return true;
-  } catch (error) {
-    console.error('Falha ao processar reset de inicialização por URL.', error);
-    return false;
-  }
-}
-
 function initAuth() {
-  if (handleStartupResetQuery()) {
-    return;
-  }
-
   // Cadastrar administrador padrão na primeira execução
   initAdminUser();
 
@@ -643,13 +673,32 @@ const moduleConfig = [
 ];
 
 const defaultSetoresDestino = [
-  'Gabinete do Prefeito',
+  'Chefia de Gabinete',
+  'Setor de Planejamento',
   'Setor de Licitações',
   'Setor de Contratos',
   'Setor Financeiro',
   'Setor de Compras',
-  'Procuradoria'
+  'Procuradoria Setorial'
 ];
+
+const defaultSetoresPorSecretaria = {
+  'Gabinete do Prefeito': ['Chefia de Gabinete'],
+  'RPPS': ['Gabinete do Secretário', 'Setor de Planejamento'],
+  'Procuradoria Geral do Município': ['Gabinete do Secretário', 'Setor de Planejamento'],
+  'Secretaria de Educação, Cultura, Esportes, Lazer, Juventude e Turismo': ['Gabinete do Secretário', 'Setor de Planejamento'],
+  'Secretaria de Relações Institucionais': ['Gabinete do Secretário', 'Setor de Planejamento'],
+  'Secretaria de Administração e Gestão Pública': ['Gabinete do Secretário', 'Setor de Planejamento'],
+  'Secretaria de Agricultura': ['Gabinete do Secretário', 'Setor de Planejamento'],
+  'Secretaria de Desenvolvimento Social, Direitos Humanos, Trabalho e Cidadania': ['Gabinete do Secretário', 'Setor de Planejamento'],
+  'Secretaria de Finanças': ['Gabinete do Secretário', 'Setor de Planejamento'],
+  'Secretaria de Governo': ['Gabinete do Secretário', 'Setor de Planejamento'],
+  'Secretaria de Infraestrutura e Mobilidade Urbana': ['Gabinete do Secretário', 'Setor de Planejamento'],
+  'Secretaria de Planejamento': ['Gabinete do Secretário', 'Setor de Planejamento'],
+  'Secretaria de Saúde': ['Gabinete do Secretário', 'Setor de Planejamento'],
+  'Secretaria de Transparência, Fiscalização e Controle': ['Gabinete do Secretário', 'Setor de Planejamento'],
+  'Secretaria de Transportes': ['Gabinete do Secretário', 'Setor de Planejamento']
+};
 
 const defaultModalidades = [
   'Inexigibilidade',
@@ -963,11 +1012,27 @@ const processosData = [
 ];
 
 const orgaosPorMunicipio = {
-  'Bom Conselho/PE': ['Secretaria de Educação', 'Secretaria de Saúde', 'Secretaria de Administração', 'Secretaria de Infraestrutura'],
-  'Japaratinga/AL': ['Secretaria de Educação', 'Secretaria de Administração', 'Secretaria de Saúde'],
-  'Marechal Deodoro/AL': ['Secretaria de Saúde', 'Secretaria de Infraestrutura', 'Secretaria de Educação'],
-  'Matriz de Camaragibe/AL': ['Secretaria de Administração', 'Secretaria de Educação'],
-  'São Miguel dos Campos/AL': ['Secretaria de Infraestrutura', 'Secretaria de Saúde']
+  'Bom Conselho/PE': [
+    'Gabinete do Prefeito',
+    'RPPS',
+    'Procuradoria Geral do Município',
+    'Secretaria de Educação, Cultura, Esportes, Lazer, Juventude e Turismo',
+    'Secretaria de Relações Institucionais',
+    'Secretaria de Administração e Gestão Pública',
+    'Secretaria de Agricultura',
+    'Secretaria de Desenvolvimento Social, Direitos Humanos, Trabalho e Cidadania',
+    'Secretaria de Finanças',
+    'Secretaria de Governo',
+    'Secretaria de Infraestrutura e Mobilidade Urbana',
+    'Secretaria de Planejamento',
+    'Secretaria de Saúde',
+    'Secretaria de Transparência, Fiscalização e Controle',
+    'Secretaria de Transportes'
+  ],
+  'Japaratinga/AL': ['Gabinete do Prefeito', 'Procuradoria Geral do Município', 'Secretaria de Educação, Cultura, Esportes, Lazer, Juventude e Turismo', 'Secretaria de Administração e Gestão Pública', 'Secretaria de Saúde'],
+  'Marechal Deodoro/AL': ['Gabinete do Prefeito', 'Procuradoria Geral do Município', 'Secretaria de Saúde', 'Secretaria de Infraestrutura e Mobilidade Urbana', 'Secretaria de Educação, Cultura, Esportes, Lazer, Juventude e Turismo'],
+  'Matriz de Camaragibe/AL': ['Gabinete do Prefeito', 'Procuradoria Geral do Município', 'Secretaria de Administração e Gestão Pública', 'Secretaria de Educação, Cultura, Esportes, Lazer, Juventude e Turismo'],
+  'São Miguel dos Campos/AL': ['Gabinete do Prefeito', 'Procuradoria Geral do Município', 'Secretaria de Infraestrutura e Mobilidade Urbana', 'Secretaria de Saúde']
 };
 
 const chartData = [
@@ -1457,12 +1522,17 @@ function normalizeSetoresDestino(setores) {
   return Array.from(new Set(normalized));
 }
 
+function getDefaultSetoresForSecretaria(secretariaName) {
+  const key = String(secretariaName || '').trim();
+  return [...(defaultSetoresPorSecretaria[key] || defaultSetoresDestino)];
+}
+
 function buildDefaultMunicipalStructure() {
   return municipios.map((nomeMunicipio) => ({
     nome: nomeMunicipio,
     secretarias: (orgaosPorMunicipio[nomeMunicipio] || []).map((nomeSecretaria) => ({
       nome: nomeSecretaria,
-      setores: [...defaultSetoresDestino]
+      setores: getDefaultSetoresForSecretaria(nomeSecretaria)
     }))
   }));
 }
@@ -1506,7 +1576,7 @@ function normalizeMunicipalStructure(structure) {
       const setores = Array.isArray(secretaria?.setores)
         ? secretaria.setores.map((setor) => String(setor || '').trim()).filter(Boolean)
         : [];
-      const normalizedSetores = Array.from(new Set(setores));
+      const normalizedSetores = Array.from(new Set(setores.length ? setores : getDefaultSetoresForSecretaria(nomeSecretaria)));
 
       normalizedSecretarias.push({
         nome: nomeSecretaria,
@@ -3062,9 +3132,24 @@ const initialState = {
 };
 
 let state = loadState();
+if (!state || !Array.isArray(state.processes) || !state.processes.length) {
+  state = buildInitialState();
+}
 let selectedProcessId = state.processes[0]?.id || null;
 filtrosPainel = normalizePainelFilters(state.painelFilters, state.licitacoesDemandas, state.modalidades);
 state.painelFilters = filtrosPainel;
+if (!state.processes.length) {
+  state.processes = [buildProcess('administrativa', 'Processo 001')];
+  selectedProcessId = state.processes[0]?.id || null;
+}
+if (!state.communications) {
+  state.communications = normalizeCommunicationsState();
+}
+state.processes = state.processes.map((process) => ({
+  ...process,
+  documents: Array.isArray(process.documents) && process.documents.length ? process.documents : buildDocuments(ritesConfig[process.riteKey], process.id)
+}));
+persistState();
 
 function loadState() {
   const saved = localStorage.getItem('proad-state');
@@ -3076,29 +3161,10 @@ function loadState() {
     const parsed = JSON.parse(saved);
     const municipalStructure = normalizeMunicipalStructure(parsed.municipalStructure);
     const derivedSetores = getAllSetoresFromStructureData(municipalStructure);
-    const parsedProcesses = Array.isArray(parsed.processes)
-      ? parsed.processes.map((process) => {
-        const processId = String(process?.id || '').trim() || crypto.randomUUID();
-        const riteKey = ritesConfig[process?.riteKey] ? process.riteKey : 'administrativa';
-        const documents = Array.isArray(process?.documents) && process.documents.length
-          ? process.documents
-          : buildDocuments(ritesConfig[riteKey], processId);
-
-        return {
-          ...process,
-          id: processId,
-          riteKey,
-          documents
-        };
-      })
-      : [];
-
-    const safeProcesses = parsedProcesses.length
-      ? parsedProcesses
-      : [buildProcess('administrativa', 'Processo 001')];
-
-    return {
-      processes: safeProcesses,
+    const nextState = {
+      processes: Array.isArray(parsed.processes)
+        ? parsed.processes.map((process) => ({ ...process, documents: Array.isArray(process.documents) && process.documents.length ? process.documents : buildDocuments(ritesConfig[process.riteKey], process.id) }))
+        : [],
       licitacoesDemandas: Array.isArray(parsed.licitacoesDemandas) ? parsed.licitacoesDemandas : [],
       municipalStructure,
       setoresDestino: derivedSetores.length ? derivedSetores : normalizeSetoresDestino(parsed.setoresDestino),
@@ -3114,6 +3180,12 @@ function loadState() {
       alerts: normalizeAlerts(parsed.alerts),
       communications: normalizeCommunicationsState(parsed.communications)
     };
+
+    if (!nextState.processes.length) {
+      nextState.processes = [buildProcess('administrativa', 'Processo 001')];
+    }
+
+    return nextState;
   } catch (error) {
     console.error('Falha ao carregar estado salvo.', error);
     return buildInitialState();
@@ -3180,12 +3252,23 @@ function persistState() {
 
 function init() {
   syncPresenceWithApi(true).catch(() => {});
-  bindTopbarMessages();
-  try {
-    render();
-  } catch (error) {
-    recoverFromStartupFailure(error);
+  if (!state || !Array.isArray(state.processes) || !state.processes.length) {
+    state = buildInitialState();
+    selectedProcessId = state.processes[0]?.id || null;
+    persistState();
   }
+  state.processes = (Array.isArray(state.processes) ? state.processes : []).map((process) => ({
+    ...process,
+    documents: Array.isArray(process.documents) && process.documents.length ? process.documents : buildDocuments(ritesConfig[process.riteKey], process.id)
+  }));
+  if (!state.processes.length) {
+    state.processes = [buildProcess('administrativa', 'Processo 001')];
+    selectedProcessId = state.processes[0]?.id || null;
+  }
+  state.painelFilters = normalizePainelFilters(state.painelFilters, state.licitacoesDemandas, state.modalidades);
+  filtrosPainel = state.painelFilters;
+  bindTopbarMessages();
+  render();
   bindSidebar();
   bindModuleNavigation();
 
@@ -3203,77 +3286,6 @@ function init() {
   if (resetBtn) {
     resetBtn.addEventListener('click', resetProcess);
   }
-
-  // Valida montagem inicial para evitar tela vazia por estado/localStorage inconsistente.
-  ensureMainUiMounted();
-  window.requestAnimationFrame(() => {
-    ensureMainUiMounted();
-  });
-}
-
-function renderSidebarNavigation() {
-  const nav = document.querySelector('.sidebar-nav');
-  if (!nav) {
-    return;
-  }
-
-  nav.innerHTML = moduleConfig.map((module) => `
-    <button class="nav-item ${module.key === activeModuleKey ? 'active' : ''}" type="button">
-      <span class="nav-icon">${module.icon}</span>
-      <span class="nav-label">${module.label}</span>
-    </button>
-  `).join('');
-}
-
-function recoverFromStartupFailure(error) {
-  console.error('Falha ao inicializar a interface. Estado será recriado.', error);
-
-  try {
-    state = buildInitialState();
-    selectedProcessId = state.processes[0]?.id || null;
-    activeModuleKey = 'painel';
-    state.painelFilters = normalizePainelFilters(state.painelFilters, state.licitacoesDemandas, state.modalidades);
-    filtrosPainel = state.painelFilters;
-    persistState();
-    render();
-  } catch (recoveryError) {
-    console.error('Falha ao recuperar interface após erro de inicialização.', recoveryError);
-    renderSidebarNavigation();
-    const container = document.getElementById('moduleContent');
-    if (container) {
-      container.innerHTML = '<section class="panel"><p class="empty-state">Não foi possível carregar a tela. Recarregue a página para tentar novamente.</p></section>';
-    }
-  }
-}
-
-function ensureMainUiMounted() {
-  const nav = document.querySelector('.sidebar-nav');
-  const container = document.getElementById('moduleContent');
-  const navItemsCount = nav ? nav.querySelectorAll('.nav-item').length : 0;
-  const hasContainerContent = Boolean(container && container.children.length > 0);
-
-  if (navItemsCount > 0 && hasContainerContent) {
-    return;
-  }
-
-  console.warn('Interface principal não montou corretamente. Aplicando recuperação forçada.');
-
-  try {
-    state = buildInitialState();
-    selectedProcessId = state.processes[0]?.id || null;
-    activeModuleKey = 'painel';
-    state.painelFilters = normalizePainelFilters(state.painelFilters, state.licitacoesDemandas, state.modalidades);
-    filtrosPainel = state.painelFilters;
-    persistState();
-    render();
-    bindModuleNavigation();
-  } catch (error) {
-    console.error('Falha na recuperação forçada da interface.', error);
-    renderSidebarNavigation();
-    if (container) {
-      container.innerHTML = '<section class="panel"><p class="empty-state">Não foi possível carregar os módulos. Acesse novamente com ?reset=1 no final da URL.</p></section>';
-    }
-  }
 }
 
 function bindModuleNavigation() {
@@ -3290,10 +3302,6 @@ function bindModuleNavigation() {
 function bindSidebar() {
   const toggleBtn = document.getElementById('toggleSidebarBtn');
   const sidebar = document.getElementById('sidebar');
-
-  if (!toggleBtn || !sidebar) {
-    return;
-  }
 
   toggleBtn.addEventListener('click', () => {
     sidebar.classList.toggle('collapsed');
@@ -4064,23 +4072,28 @@ function getSelectedProcess() {
 }
 
 function render() {
-  if (!Array.isArray(state.processes) || !state.processes.length) {
-    state.processes = [buildProcess('administrativa', 'Processo 001')];
-    selectedProcessId = state.processes[0].id;
+  if (!state || !Array.isArray(state.processes) || !state.processes.length) {
+    state = buildInitialState();
+    selectedProcessId = state.processes[0]?.id || null;
     persistState();
   }
 
-  renderSidebarNavigation();
-
-  let process = getSelectedProcess();
+  const process = getSelectedProcess();
   if (!process) {
     state.processes = [buildProcess('administrativa', 'Processo 001')];
-    selectedProcessId = state.processes[0].id;
+    selectedProcessId = state.processes[0]?.id || null;
     persistState();
-    process = getSelectedProcess();
-    if (!process) {
-      return;
-    }
+    return render();
+  }
+
+  const nav = document.querySelector('.sidebar-nav');
+  if (nav) {
+    nav.innerHTML = moduleConfig.map((module) => `
+      <button class="nav-item ${module.key === activeModuleKey ? 'active' : ''}" type="button">
+        <span class="nav-icon">${module.icon}</span>
+        <span class="nav-label">${module.label}</span>
+      </button>
+    `).join('');
   }
 
   renderModuleContent(activeModuleKey);
@@ -4410,7 +4423,7 @@ function renderEstruturaMunicipalModule(container) {
       }
       return {
         ...municipio,
-        secretarias: [...(municipio.secretarias || []), { nome: value, setores: [] }]
+        secretarias: [...(municipio.secretarias || []), { nome: value, setores: getDefaultSetoresForSecretaria(value) }]
       };
     });
 
@@ -5740,74 +5753,6 @@ function renderModuleContent(moduleKey) {
           return '';
         }).join('')}
       </div>
-
-      <div class="charts-row">
-        <div class="chart-card donut-card">
-          <div class="donut-header">
-            <h3>Prioridades dos Processos</h3>
-            <div class="checkbox-dropdown" id="donutMunicipioDropdown">
-              <button type="button" class="dropdown-trigger-btn" id="donutMunicipioTrigger">Todos ▼</button>
-              <div class="dropdown-panel" id="donutMunicipioPanel">
-                <label class="cb-option all-option"><input type="checkbox" id="donutCbTodos" checked> Todos</label>
-                ${municipios.map(function(m) { return '<label class="cb-option"><input type="checkbox" class="donut-municipio-cb" value="' + m + '" checked> ' + m + '</label>'; }).join('')}
-              </div>
-            </div>
-          </div>
-          <div class="donut-wrapper">
-            <div class="donut-chart">
-              <svg viewBox="0 0 240 240" class="donut-svg" id="donutSvg">
-                <circle cx="120" cy="120" r="100" fill="none" stroke-width="40" stroke-dasharray="0 0" class="donut-segment" data-priority="urgente"></circle>
-                <circle cx="120" cy="120" r="100" fill="none" stroke-width="40" stroke-dasharray="0 0" class="donut-segment" data-priority="alta"></circle>
-                <circle cx="120" cy="120" r="100" fill="none" stroke-width="40" stroke-dasharray="0 0" class="donut-segment" data-priority="média"></circle>
-                <circle cx="120" cy="120" r="100" fill="none" stroke-width="40" stroke-dasharray="0 0" class="donut-segment" data-priority="baixa"></circle>
-                <circle cx="120" cy="120" r="100" fill="none" stroke-width="40" stroke-dasharray="0 0" class="donut-segment" data-priority="-"></circle>
-              </svg>
-              <div class="donut-center">
-                <div class="donut-total" id="processesTotal">0</div>
-                <div class="donut-label">Processos</div>
-              </div>
-            </div>
-          </div>
-          <div id="donutTooltip" class="donut-tooltip"></div>
-        </div>
-
-        <div class="chart-card urgent-card">
-          <div class="urgent-header">
-            <h3>Urgentes / Órgão</h3>
-            <div class="urgent-filters">
-              <div class="filter-group">
-                <label>Município</label>
-                <div class="checkbox-dropdown" id="urgentMunicipioDropdown">
-                  <button type="button" class="dropdown-trigger-btn" id="urgentMunicipioTrigger">Todos ▼</button>
-                  <div class="dropdown-panel" id="urgentMunicipioPanel">
-                    <label class="cb-option all-option"><input type="checkbox" id="urgentCbMunicipiosTodos" checked> Todos</label>
-                    ${municipios.map(function(m) { return '<label class="cb-option"><input type="checkbox" class="urgent-municipio-cb" value="' + m + '" checked> ' + m + '</label>'; }).join('')}
-                  </div>
-                </div>
-              </div>
-              <div class="filter-group">
-                <label>Órgão</label>
-                <div class="checkbox-dropdown" id="urgentOrgaoDropdown">
-                  <button type="button" class="dropdown-trigger-btn" id="urgentOrgaoTrigger">Todos ▼</button>
-                  <div class="dropdown-panel" id="urgentOrgaoPanel"></div>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div class="chart-wrapper">
-            <div class="chart-axis">
-              <div class="chart-grid">
-                <span data-label="15"></span>
-                <span data-label="10"></span>
-                <span data-label="5"></span>
-                <span data-label="0"></span>
-              </div>
-              <div class="chart-bars" id="urgentChartBars"></div>
-            </div>
-          </div>
-          <div class="chart-bottom-labels" id="urgentBottomLabels"></div>
-        </div>
-      </div>
     </section>
   `;
 
@@ -5815,231 +5760,6 @@ function renderModuleContent(moduleKey) {
   bindPanelCards();
   return;
 }
-
-function initUrgentFilters() {
-  var mTrigger = document.getElementById('urgentMunicipioTrigger');
-  var mPanel = document.getElementById('urgentMunicipioPanel');
-  var oTrigger = document.getElementById('urgentOrgaoTrigger');
-  var oPanel = document.getElementById('urgentOrgaoPanel');
-  if (!mTrigger) return;
-
-  if (!document._cbDropdownListenerAdded) {
-    document.addEventListener('click', function() {
-      document.querySelectorAll('.dropdown-panel.open').forEach(function(p) { p.classList.remove('open'); });
-    });
-    document._cbDropdownListenerAdded = true;
-  }
-
-  mTrigger.addEventListener('click', function(e) {
-    e.stopPropagation();
-    mPanel.classList.toggle('open');
-    oPanel.classList.remove('open');
-    var dp = document.getElementById('donutMunicipioPanel');
-    if (dp) dp.classList.remove('open');
-  });
-
-  oTrigger.addEventListener('click', function(e) {
-    e.stopPropagation();
-    oPanel.classList.toggle('open');
-    mPanel.classList.remove('open');
-    var dp = document.getElementById('donutMunicipioPanel');
-    if (dp) dp.classList.remove('open');
-  });
-
-  var mTodos = document.getElementById('urgentCbMunicipiosTodos');
-  if (mTodos) {
-    mTodos.addEventListener('change', function(e) {
-      document.querySelectorAll('.urgent-municipio-cb').forEach(function(cb) { cb.checked = e.target.checked; });
-      refreshUrgentOrgaos();
-    });
-  }
-
-  document.querySelectorAll('.urgent-municipio-cb').forEach(function(cb) {
-    cb.addEventListener('change', function() {
-      var all = Array.from(document.querySelectorAll('.urgent-municipio-cb'));
-      var todosEl = document.getElementById('urgentCbMunicipiosTodos');
-      if (todosEl) todosEl.checked = all.every(function(c) { return c.checked; });
-      refreshUrgentOrgaos();
-    });
-  });
-
-  refreshUrgentOrgaos();
-}
-
-function refreshUrgentOrgaos() {
-  var selectedM = Array.from(document.querySelectorAll('.urgent-municipio-cb:checked')).map(function(cb) { return cb.value; });
-  var allOrgaos = Array.from(new Set(processosData.filter(function(p) { return selectedM.includes(p.municipio); }).map(function(p) { return p.orgao; }))).sort();
-
-  var panel = document.getElementById('urgentOrgaoPanel');
-  if (!panel) return;
-
-  panel.innerHTML = '<label class="cb-option all-option"><input type="checkbox" id="urgentCbOrgaosTodos" checked> Todos</label>' +
-    allOrgaos.map(function(o) { return '<label class="cb-option"><input type="checkbox" class="urgent-orgao-cb" value="' + o + '" checked> ' + o + '</label>'; }).join('');
-
-  var oTodos = document.getElementById('urgentCbOrgaosTodos');
-  if (oTodos) {
-    oTodos.addEventListener('change', function(e) {
-      document.querySelectorAll('.urgent-orgao-cb').forEach(function(cb) { cb.checked = e.target.checked; });
-      updateUrgentChart();
-    });
-  }
-
-  document.querySelectorAll('.urgent-orgao-cb').forEach(function(cb) {
-    cb.addEventListener('change', function() {
-      var all = Array.from(document.querySelectorAll('.urgent-orgao-cb'));
-      var todosEl = document.getElementById('urgentCbOrgaosTodos');
-      if (todosEl) todosEl.checked = all.every(function(c) { return c.checked; });
-      updateUrgentChart();
-    });
-  });
-
-  updateUrgentChart();
-}
-
-function updateUrgentChart() {
-  var selectedM = Array.from(document.querySelectorAll('.urgent-municipio-cb:checked')).map(function(cb) { return cb.value; });
-  var selectedO = Array.from(document.querySelectorAll('.urgent-orgao-cb:checked')).map(function(cb) { return cb.value; });
-
-  var byOrgao = {};
-  processosData.filter(function(p) { return p.prioridade === 'urgente' && selectedM.includes(p.municipio); }).forEach(function(p) {
-    byOrgao[p.orgao] = (byOrgao[p.orgao] || 0) + 1;
-  });
-
-  var filtered = Object.entries(byOrgao).filter(function(e) { return selectedO.length === 0 || selectedO.includes(e[0]); }).sort(function(a, b) { return b[1] - a[1]; });
-  var maxVal = filtered.length ? Math.max.apply(null, filtered.map(function(e) { return e[1]; })) : 1;
-
-  var barsEl = document.getElementById('urgentChartBars');
-  var labelsEl = document.getElementById('urgentBottomLabels');
-
-  if (barsEl) {
-    barsEl.innerHTML = filtered.map(function(item) {
-      var h = (item[1] / maxVal) * 100;
-      return '<div class="chart-bar"><div class="bar-quantity">' + item[1] + '</div><div class="bar-fill" style="height: ' + h + '%; background: #dc3545;"></div></div>';
-    }).join('');
-  }
-
-  if (labelsEl) {
-    labelsEl.innerHTML = filtered.map(function(e) { return '<div class="bar-label">' + e[0] + '</div>'; }).join('');
-  }
-
-  // Atualizar labels dos triggers
-  var mCbs = document.querySelectorAll('.urgent-municipio-cb');
-  var mChecked = document.querySelectorAll('.urgent-municipio-cb:checked').length;
-  var mTrigger = document.getElementById('urgentMunicipioTrigger');
-  if (mTrigger) mTrigger.textContent = (mChecked === mCbs.length ? 'Todos' : mChecked + '/' + mCbs.length) + ' ▼';
-
-  var oCbs = document.querySelectorAll('.urgent-orgao-cb');
-  var oChecked = document.querySelectorAll('.urgent-orgao-cb:checked').length;
-  var oTrigger = document.getElementById('urgentOrgaoTrigger');
-  if (oTrigger) oTrigger.textContent = (oChecked === oCbs.length ? 'Todos' : oChecked + '/' + oCbs.length) + ' ▼';
-}
-
-/* ===== GRÁFICO DE ROSCA ===== */
-
-function initDonutFilter() {
-  const trigger = document.getElementById('donutMunicipioTrigger');
-  const panel = document.getElementById('donutMunicipioPanel');
-  if (!trigger || !panel) return;
-
-  trigger.addEventListener('click', function(e) {
-    e.stopPropagation();
-    panel.classList.toggle('open');
-    var op = document.getElementById('urgentMunicipioPanel');
-    var oop = document.getElementById('urgentOrgaoPanel');
-    if (op) op.classList.remove('open');
-    if (oop) oop.classList.remove('open');
-  });
-
-  var todosCb = document.getElementById('donutCbTodos');
-  if (todosCb) {
-    todosCb.addEventListener('change', function(e) {
-      document.querySelectorAll('.donut-municipio-cb').forEach(function(cb) { cb.checked = e.target.checked; });
-      donutUpdateFromFilter();
-    });
-  }
-
-  document.querySelectorAll('.donut-municipio-cb').forEach(function(cb) {
-    cb.addEventListener('change', function() {
-      var all = Array.from(document.querySelectorAll('.donut-municipio-cb'));
-      var todosEl = document.getElementById('donutCbTodos');
-      if (todosEl) todosEl.checked = all.every(function(c) { return c.checked; });
-      donutUpdateFromFilter();
-    });
-  });
-
-  donutUpdateFromFilter();
-}
-
-function donutUpdateFromFilter() {
-  var cbs = document.querySelectorAll('.donut-municipio-cb');
-  var selected = Array.from(cbs).filter(function(cb) { return cb.checked; }).map(function(cb) { return cb.value; });
-  var filtered = processosData.filter(function(p) { return selected.length === 0 || selected.includes(p.municipio); });
-  var trigger = document.getElementById('donutMunicipioTrigger');
-  if (trigger) trigger.textContent = (selected.length === cbs.length ? 'Todos' : selected.length + '/' + cbs.length) + ' ▼';
-  renderDonutChart(filtered);
-}
-
-function renderDonutChart(processos) {
-  var svg = document.getElementById('donutSvg');
-  var totalEl = document.getElementById('processesTotal');
-  if (!svg || !totalEl) return;
-
-  var total = processos.length;
-  totalEl.textContent = total;
-  Array.from(svg.querySelectorAll('text')).forEach(function(t) { t.remove(); });
-
-  var colors = { urgente: '#dc3545', alta: '#fd7e14', 'média': '#ffc107', baixa: '#5b5b58', '-': '#D3D3D3' };
-  var textColors = { urgente: '#ffffff', alta: '#ffffff', 'média': '#ffffff', baixa: '#000000', '-': '#000000' };
-  var labels = { urgente: 'Urgente', alta: 'Alta', 'média': 'Média', baixa: 'Baixa', '-': 'Sem prioridade' };
-  var order = ['urgente', 'alta', 'média', 'baixa', '-'];
-  var circumference = 2 * Math.PI * 100;
-
-  if (total === 0) {
-    order.forEach(function(p) {
-      var seg = svg.querySelector('.donut-segment[data-priority="' + p + '"]');
-      if (seg) { seg.style.stroke = p === 'urgente' ? '#e0e0e0' : 'transparent'; seg.style.strokeDasharray = p === 'urgente' ? circumference + ' 0' : '0 0'; seg.style.strokeDashoffset = '0'; }
-    });
-    return;
-  }
-
-  var currentAngle = 0;
-  order.forEach(function(priority) {
-    var count = processos.filter(function(p) { return p.prioridade === priority; }).length;
-    var percent = count / total * 100;
-    var seg = svg.querySelector('.donut-segment[data-priority="' + priority + '"]');
-    if (!seg) return;
-
-    seg.style.stroke = count > 0 ? colors[priority] : 'transparent';
-    seg.style.strokeDasharray = (percent / 100) * circumference + ' ' + circumference;
-    seg.style.strokeDashoffset = -currentAngle * circumference / 360;
-
-    var newSeg = seg.cloneNode(true);
-    seg.parentNode.replaceChild(newSeg, seg);
-    (function(p, c) {
-      newSeg.addEventListener('click', function() {
-        var tt = document.getElementById('donutTooltip');
-        if (tt) { tt.textContent = labels[p] + ': ' + c; tt.classList.add('show'); setTimeout(function() { tt.classList.remove('show'); }, 2500); }
-      });
-    })(priority, count);
-
-    if (count > 0) {
-      var midAngle = currentAngle + (percent / 100) * 180;
-      var rad = midAngle * Math.PI / 180;
-      var x = 120 + 100 * Math.cos(rad);
-      var y = 120 + 100 * Math.sin(rad);
-      var textEl = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-      textEl.setAttribute('x', x); textEl.setAttribute('y', y);
-      textEl.setAttribute('text-anchor', 'middle'); textEl.setAttribute('dominant-baseline', 'central');
-      textEl.setAttribute('font-size', '16'); textEl.setAttribute('font-weight', '700');
-      textEl.setAttribute('fill', textColors[priority]); textEl.setAttribute('pointer-events', 'none');
-      textEl.textContent = count;
-      svg.appendChild(textEl);
-    }
-    currentAngle += percent / 100 * 360;
-  });
-}
-
-/* ===== GRÁFICO URGENTES POR ÓRGÃO ===== */
 
 function initUrgentFilters() {
   var mTrigger = document.getElementById('urgentMunicipioTrigger');
