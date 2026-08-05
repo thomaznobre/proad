@@ -2226,20 +2226,21 @@ body.col-resize-active * {
 
 .licitacao-details-shell {
   display: flex;
-  align-items: stretch;
-  width: 100%;
-  min-height: min(74vh, 760px);
+  align-items: flex-start;
+  width: fit-content;
+  max-width: calc(100vw - 4rem);
 }
 
 .licitacao-details-main {
   flex: 0 0 min(760px, calc(100vw - 8rem));
   max-width: min(760px, calc(100vw - 8rem));
-  width: 100%;
+  width: min(760px, calc(100vw - 8rem));
+  max-height: min(82vh, 800px);
   background: #ffffff;
   border: 1px solid var(--border);
   border-radius: 1rem;
   padding: 1.2rem;
-  overflow: auto;
+  overflow-y: auto;
 }
 
 .licitacao-history-toggle {
@@ -2264,22 +2265,28 @@ body.col-resize-active * {
 
 .licitacao-history-panel {
   width: 0;
+  min-width: 0;
   opacity: 0;
   pointer-events: none;
   overflow: hidden;
   border: 1px solid transparent;
   border-radius: 1rem;
   background: #f8fbff;
-  transition: width 0.24s ease, opacity 0.2s ease, padding 0.24s ease, border-color 0.24s ease;
+  transition: width 0.28s ease, min-width 0.28s ease, opacity 0.22s ease, padding 0.28s ease, border-color 0.28s ease;
   padding: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .licitacao-details-shell.is-expanded .licitacao-history-panel {
-  width: min(760px, calc(100vw - 8rem));
+  width: min(400px, calc(100vw - 8rem));
+  min-width: min(340px, calc(100vw - 8rem));
+  max-height: min(82vh, 800px);
   opacity: 1;
   pointer-events: auto;
   border-color: var(--border);
   padding: 1rem;
+  overflow-y: auto;
 }
 
 .licitacao-history-head h3 {
@@ -2377,12 +2384,15 @@ body.col-resize-active * {
 
   .licitacao-details-shell {
     flex-direction: column;
-    min-height: 0;
+    width: 100%;
+    max-width: 100%;
   }
 
   .licitacao-details-main {
     max-width: 100%;
+    width: 100%;
     flex-basis: auto;
+    max-height: none;
   }
 
   .licitacao-history-toggle {
@@ -2395,6 +2405,8 @@ body.col-resize-active * {
   .licitacao-history-panel,
   .licitacao-details-shell.is-expanded .licitacao-history-panel {
     width: 100%;
+    min-width: 0;
+    max-height: none;
   }
 
   .licitacao-details-shell:not(.is-expanded) .licitacao-history-panel {
@@ -2407,6 +2419,7 @@ body.col-resize-active * {
 
   .licitacao-details-shell.is-expanded .licitacao-history-panel {
     max-height: 60vh;
+    overflow-y: auto;
   }
 }
 
@@ -2490,9 +2503,17 @@ body.col-resize-active * {
 .licitacao-details-actions {
   margin-top: 0.9rem;
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between;
+  align-items: center;
   gap: 0.65rem;
   flex-wrap: wrap;
+}
+
+.licitacao-details-actions-right {
+  display: flex;
+  gap: 0.65rem;
+  align-items: center;
+  margin-left: auto;
 }
 
 .ritos-hero {

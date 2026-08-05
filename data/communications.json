@@ -135,8 +135,8 @@
   ],
   "externalSync": {
     "seenMessageIds": [],
-    "lastRunAt": "2026-08-05T04:50:12.092Z",
-    "lastError": "Failed to establish connection in required time",
+    "lastRunAt": "2026-08-05T05:23:45.177Z",
+    "lastError": "Command failed",
     "importedCount": 0,
     "configured": true
   }

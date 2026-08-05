@@ -4738,7 +4738,7 @@ function getNextStatusForDemand(modalidade, currentStatus) {
   return options[0] || null;
 }
 
-function tramitarLicitacaoDemandFromModal(demandId) {
+async function tramitarLicitacaoDemandFromModal(demandId) {
   const demandas = Array.isArray(state.licitacoesDemandas) ? state.licitacoesDemandas : [];
   const index = demandas.findIndex((item) => item.id === demandId);
   if (index === -1) {
@@ -4752,6 +4752,22 @@ function tramitarLicitacaoDemandFromModal(demandId) {
     window.alert('Somente o responsável atual ou o administrador pode tramitar este processo.');
     return;
   }
+
+  const fileInput = document.getElementById('tramiteDocStatusInput');
+  const file = fileInput?.files?.[0] || null;
+  if (!file) {
+    window.alert('Anexe o documento referente ao status atual antes de tramitar.');
+    return;
+  }
+
+  let docDataUrl = '';
+  try {
+    docDataUrl = await readFileAsDataUrl(file);
+  } catch (e) {
+    window.alert('Não foi possível processar o documento anexado.');
+    return;
+  }
+  const tramiteDoc = { nome: file.name, url: docDataUrl };
 
   const modalidadeFromForm = String(document.getElementById('editDemandModalidade')?.value || '').trim();
   const modalidadeAtual = modalidadeFromForm || String(demand.modalidade || '').trim() || '-';
@@ -4787,7 +4803,8 @@ function tramitarLicitacaoDemandFromModal(demandId) {
   }, {
     status: nextStatus,
     responsavel: currentUser?.nome || nextResponsavel,
-    descricao: `Processo tramitado de ${String(demand.status || 'DFD')} para ${nextStatus}.`
+    descricao: `Processo tramitado de ${String(demand.status || 'DFD')} para ${nextStatus}.`,
+    documentos: [tramiteDoc]
   });
 
   demandas[index] = updatedDemand;
@@ -4991,7 +5008,10 @@ function bindStatusAndOrderByModalidadePicker(demandId) {
     const options = getStatusOptionsForModalidade(modalidade);
     statusSelect.innerHTML = options.map((status) => `<option value="${escapeHtml(status)}">${escapeHtml(status)}</option>`).join('');
     statusSelect.value = options.includes(currentStatus) ? currentStatus : (options[0] || 'DFD');
-    numeroOrdemInput.value = getNextNumeroOrdemByModalidade(modalidade, demandId);
+    // só gera número de ordem ao escolher a modalidade durante o ETP
+    if (currentStatus.toUpperCase() === 'ETP') {
+      numeroOrdemInput.value = getNextNumeroOrdemByModalidade(modalidade, demandId);
+    }
   };
 
   modalidadeSelect.addEventListener('change', update);
@@ -5033,6 +5053,11 @@ function openLicitacaoDetailsModal(demand) {
   const modalidadeAtual = normalizedDemand.modalidade && normalizedDemand.modalidade !== '-' ? normalizedDemand.modalidade : (modalidades[0] || defaultModalidades[0]);
   const statusOptionsByModalidade = getStatusOptionsForModalidade(modalidadeAtual);
   const statusAtual = statusOptionsByModalidade.includes(normalizedDemand.status) ? normalizedDemand.status : (statusOptionsByModalidade[0] || 'DFD');
+  const statusAtualUpper = String(statusAtual).toUpperCase();
+  const isStatusPesquisa = statusAtualUpper.includes('PESQUISA');
+  const isStatusContrato = statusAtualUpper.includes('CONTRATO') || statusAtualUpper.includes('ARP') || statusAtualUpper.includes('TERMO ADITIVO');
+  const valorEstimadoAttr = (canEditFlow && isStatusPesquisa) ? '' : 'disabled';
+  const valorContratadoAttr = (canEditFlow && isStatusContrato) ? '' : 'disabled';
   const numeroOrdemAtual = String(normalizedDemand.numeroOrdem || '').trim() && String(normalizedDemand.numeroOrdem || '').trim() !== '-'
     ? String(normalizedDemand.numeroOrdem || '').trim()
     : getNextNumeroOrdemByModalidade(modalidadeAtual, normalizedDemand.id);
@@ -5109,6 +5134,9 @@ function openLicitacaoDetailsModal(demand) {
               ${statusOptionsByModalidade.map((status) => `<option value="${escapeHtml(status)}" ${status === statusAtual ? 'selected' : ''}>${escapeHtml(status)}</option>`).join('')}
             </select>
           </div>
+          <div class="detail-cell detail-cell-full"><span>Documento do status <small class="inline-muted">• obrigatório para tramitar</small></span>
+            <input id="tramiteDocStatusInput" type="file" accept=".pdf,.doc,.docx,.odt,.txt,.png,.jpg,.jpeg" />
+          </div>
           <div class="detail-cell"><span>Modalidade</span>
             <select id="editDemandModalidade" ${flowReadonlyAttr}>
               <option value="-" ${modalidadeAtual === '-' ? 'selected' : ''}>Selecionar no ETP</option>
@@ -5116,9 +5144,8 @@ function openLicitacaoDetailsModal(demand) {
             </select>
           </div>
           <div class="detail-cell"><span>N° de ordem</span><input id="editDemandNumeroOrdem" type="text" value="${escapeHtml(numeroOrdemAtual)}" disabled /></div>
-          <div class="detail-cell"><span>Valor estimado</span><input id="editDemandValorEstimado" type="text" value="${escapeHtml(normalizedDemand.valorEstimado || '')}" placeholder="R$ 0,00" ${readonlyAttr} /></div>
-          <div class="detail-cell"><span>Valor contratado</span><input id="editDemandValorContratado" type="text" value="${escapeHtml(normalizedDemand.valorContratado || '')}" placeholder="R$ 0,00" ${readonlyAttr} /></div>
-          <div class="detail-cell"><span>Data de criação</span><input id="editDemandCreatedAt" type="date" value="${escapeHtml(createdAtInputValue)}" ${readonlyAttr} /></div>
+          <div class="detail-cell"><span>Valor estimado</span><input id="editDemandValorEstimado" type="text" value="${escapeHtml(normalizedDemand.valorEstimado || '')}" placeholder="R$ 0,00" ${valorEstimadoAttr} /></div>
+          <div class="detail-cell"><span>Valor contratado</span><input id="editDemandValorContratado" type="text" value="${escapeHtml(normalizedDemand.valorContratado || '')}" placeholder="R$ 0,00" ${valorContratadoAttr} /></div>
         </div>
 
         <div class="licitacao-details-foot">
@@ -5126,14 +5153,16 @@ function openLicitacaoDetailsModal(demand) {
           <p><strong>Aberto há:</strong> ${escapeHtml(openedElapsed)}</p>
         </div>
         <div class="licitacao-details-actions">
+          <div>
+            ${(isAdmin || (canFullEdit && canEditConcluido)) ? '<button id="saveDemandChangesBtn" type="button">Salvar alterações</button>' : ''}
+            ${isAdmin && isConcluido ? `<button id="toggleConcluidoAdjustBtn" class="btn-resolved-toggle ${saneadorUnlocked ? 'enabled' : ''}" type="button">${saneadorUnlocked ? 'Ajuste saneamento: permitido' : 'Permitir ajuste saneamento'}</button>` : ''}
+          </div>
           ${canTramitar ? '<button id="tramitarDemandBtn" type="button">Tramitar</button>' : ''}
-          ${(isAdmin || (canFullEdit && canEditConcluido)) ? '<button id="saveDemandChangesBtn" type="button">Salvar alterações</button>' : ''}
-          ${isAdmin && isConcluido ? `<button id="toggleConcluidoAdjustBtn" class="btn-resolved-toggle ${saneadorUnlocked ? 'enabled' : ''}" type="button">${saneadorUnlocked ? 'Ajuste saneamento: permitido' : 'Permitir ajuste saneamento'}</button>` : ''}
         </div>
       </section>
 
       <button id="licitacaoHistoryToggleBtn" class="licitacao-history-toggle" type="button" aria-label="Expandir ou recolher histórico de trâmites" aria-expanded="${licitacaoDetailsHistoryExpanded ? 'true' : 'false'}" title="Histórico de trâmites">
-        ${licitacaoDetailsHistoryExpanded ? '›' : '‹'}
+        ${licitacaoDetailsHistoryExpanded ? '&lt;&lt;' : '&gt;&gt;'}
       </button>
 
       <aside class="licitacao-history-panel" aria-hidden="${licitacaoDetailsHistoryExpanded ? 'false' : 'true'}">
@@ -5161,7 +5190,7 @@ function openLicitacaoDetailsModal(demand) {
     if (historyPanel) {
       historyPanel.setAttribute('aria-hidden', licitacaoDetailsHistoryExpanded ? 'false' : 'true');
     }
-    historyToggle.textContent = licitacaoDetailsHistoryExpanded ? '›' : '‹';
+    historyToggle.textContent = licitacaoDetailsHistoryExpanded ? '<<' : '>>';
   };
 
   if (historyToggle) {
@@ -5182,6 +5211,21 @@ function openLicitacaoDetailsModal(demand) {
   });
 
   syncHistoryDrawerState();
+
+  // atualiza disabled de valor estimado/contratado conforme status
+  const updateValorFieldStates = (statusValue) => {
+    const s = String(statusValue || '').toUpperCase();
+    const isPesquisa = s.includes('PESQUISA');
+    const isContrato = s.includes('CONTRATO') || s.includes('ARP') || s.includes('TERMO ADITIVO');
+    const ve = document.getElementById('editDemandValorEstimado');
+    const vc = document.getElementById('editDemandValorContratado');
+    if (ve) ve.disabled = !(canEditFlow && isPesquisa);
+    if (vc) vc.disabled = !(canEditFlow && isContrato);
+  };
+  const statusSelectEl = document.getElementById('editDemandStatus');
+  if (statusSelectEl) {
+    statusSelectEl.addEventListener('change', (e) => updateValorFieldStates(e.target.value));
+  }
 
   if (canEditFlow || isAdmin) {
     bindStatusAndOrderByModalidadePicker(normalizedDemand.id);
