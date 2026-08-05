@@ -761,6 +761,13 @@ const defaultSetoresPorSecretaria = {
 };
 
 const defaultModalidades = [
+  'Adesão à ARP',
+  'Solicitação de Termo Aditivo',
+  'Inexigibilidade - Art. 74, I',
+  'Inexigibilidade - Art. 74, II',
+  'Inexigibilidade - Art. 74, III',
+  'Inexigibilidade - Art. 74, IV',
+  'Inexigibilidade - Art. 74, V',
   'Inexigibilidade',
   'Pregão-e',
   'Dispensa-e',
@@ -779,17 +786,59 @@ const defaultStatusCatalog = [
   'AUTORIZAÇÃO',
   'PUBLICAÇÕES DE EXTRATO',
   'TERMO DE AQUIVAMENTO',
-  'TCE'
+  'OFÍCIO / MEMORANDO',
+  'OFÍCIO AO FORNECEDOR',
+  'OFÍCIO AO GESTOR',
+  'OFÍCIO EM RESPOSTA E DOCS (ACEITE DO FORNECEDOR)',
+  'OFÍCIO EM RESPOSTA E PROCESSO LICITATÓRIO (AUTORIZAÇÃO)',
+  'PESQUISA DE MERCADOLÓGICA (ATESTANDO VANTAJOSIDADE FINANCEIRA)',
+  'MINUTA DE CONTRATO (IPSIS LITTERIS À MINUTA DA ARP)',
+  'DOTAÇÃO',
+  'PARECER',
+  'CONTRATO (ASSINANDO)',
+  'PUBLICAÇÃO DO EXTRATO',
+  'SANEAMENTO',
+  'TERMO DE ARQUIVAMENTO',
+  'TCE',
+  'CONCLUÍDO'
+];
+
+const defaultRitosTradicionais = ['DFD', 'ETP', 'TR', 'APROVAÇÃO', 'PARECER JURÍDICO', 'AUTORIZAÇÃO', 'PUBLICAÇÕES DE EXTRATO', 'TERMO DE AQUIVAMENTO', 'TCE', 'CONCLUÍDO'];
+const defaultRitosAtipicos = [
+  'OFÍCIO / MEMORANDO',
+  'APROVAÇÃO',
+  'OFÍCIO AO FORNECEDOR',
+  'OFÍCIO AO GESTOR',
+  'OFÍCIO EM RESPOSTA E DOCS (ACEITE DO FORNECEDOR)',
+  'OFÍCIO EM RESPOSTA E PROCESSO LICITATÓRIO (AUTORIZAÇÃO)',
+  'PESQUISA DE MERCADOLÓGICA (ATESTANDO VANTAJOSIDADE FINANCEIRA)',
+  'MINUTA DE CONTRATO (IPSIS LITTERIS À MINUTA DA ARP)',
+  'DOTAÇÃO',
+  'PARECER',
+  'AUTORIZAÇÃO',
+  'CONTRATO (ASSINANDO)',
+  'PUBLICAÇÃO DO EXTRATO',
+  'SANEAMENTO',
+  'TERMO DE ARQUIVAMENTO',
+  'TCE',
+  'CONCLUÍDO'
 ];
 
 const defaultRitosPorModalidade = {
-  'Inexigibilidade': ['DFD', 'ETP', 'TR', 'APROVAÇÃO', 'PARECER JURÍDICO', 'AUTORIZAÇÃO', 'PUBLICAÇÕES DE EXTRATO', 'TERMO DE AQUIVAMENTO', 'TCE'],
-  'Pregão-e': ['DFD', 'ETP', 'TR', 'APROVAÇÃO', 'PARECER JURÍDICO', 'AUTORIZAÇÃO', 'PUBLICAÇÕES DE EXTRATO', 'TERMO DE AQUIVAMENTO', 'TCE'],
-  'Dispensa-e': ['DFD', 'TR', 'APROVAÇÃO', 'PARECER JURÍDICO', 'AUTORIZAÇÃO', 'PUBLICAÇÕES DE EXTRATO', 'TERMO DE AQUIVAMENTO', 'TCE'],
-  'Dispensa': ['DFD', 'TR', 'APROVAÇÃO', 'PARECER JURÍDICO', 'AUTORIZAÇÃO', 'PUBLICAÇÕES DE EXTRATO', 'TERMO DE AQUIVAMENTO', 'TCE'],
-  'Concorrência': ['DFD', 'ETP', 'TR', 'APROVAÇÃO', 'PARECER JURÍDICO', 'AUTORIZAÇÃO', 'PUBLICAÇÕES DE EXTRATO', 'TERMO DE AQUIVAMENTO', 'TCE'],
-  'Diálogo Competitivo': ['DFD', 'ETP', 'TR', 'APROVAÇÃO', 'PARECER JURÍDICO', 'AUTORIZAÇÃO', 'PUBLICAÇÕES DE EXTRATO', 'TERMO DE AQUIVAMENTO', 'TCE'],
-  'Chamada Pública': ['DFD', 'ETP', 'TR', 'APROVAÇÃO', 'PARECER JURÍDICO', 'AUTORIZAÇÃO', 'PUBLICAÇÕES DE EXTRATO', 'TERMO DE AQUIVAMENTO', 'TCE']
+  'Adesão à ARP': [...defaultRitosAtipicos],
+  'Solicitação de Termo Aditivo': [...defaultRitosAtipicos],
+  'Inexigibilidade - Art. 74, I': [...defaultRitosAtipicos],
+  'Inexigibilidade - Art. 74, II': [...defaultRitosAtipicos],
+  'Inexigibilidade - Art. 74, III': [...defaultRitosAtipicos],
+  'Inexigibilidade - Art. 74, IV': [...defaultRitosAtipicos],
+  'Inexigibilidade - Art. 74, V': [...defaultRitosAtipicos],
+  'Inexigibilidade': [...defaultRitosAtipicos],
+  'Pregão-e': [...defaultRitosTradicionais],
+  'Dispensa-e': ['DFD', 'TR', 'APROVAÇÃO', 'PARECER JURÍDICO', 'AUTORIZAÇÃO', 'PUBLICAÇÕES DE EXTRATO', 'TERMO DE AQUIVAMENTO', 'TCE', 'CONCLUÍDO'],
+  'Dispensa': ['DFD', 'TR', 'APROVAÇÃO', 'PARECER JURÍDICO', 'AUTORIZAÇÃO', 'PUBLICAÇÕES DE EXTRATO', 'TERMO DE AQUIVAMENTO', 'TCE', 'CONCLUÍDO'],
+  'Concorrência': [...defaultRitosTradicionais],
+  'Diálogo Competitivo': [...defaultRitosTradicionais],
+  'Chamada Pública': [...defaultRitosTradicionais]
 };
 
 const licitacoesColumnOrder = ['processoNumero', 'secretaria', 'objeto', 'responsavel', 'status', 'modalidade', 'numeroOrdem'];
@@ -1916,36 +1965,42 @@ function normalizeLicitacoesColumnWidths(widths) {
 }
 
 function normalizeStatusCatalog(statuses) {
-  if (!Array.isArray(statuses)) {
-    return [...defaultStatusCatalog];
-  }
+  const incoming = Array.isArray(statuses)
+    ? statuses.map((status) => String(status || '').trim()).filter(Boolean)
+    : [];
 
-  const normalized = statuses
-    .map((status) => String(status || '').trim())
-    .filter(Boolean);
+  const normalized = [...defaultStatusCatalog, ...incoming];
+  const unique = [];
+  const seen = new Set();
 
-  return Array.from(new Set(normalized));
+  normalized.forEach((status) => {
+    const key = String(status || '').trim().toLowerCase();
+    if (!key || seen.has(key)) {
+      return;
+    }
+    seen.add(key);
+    unique.push(String(status || '').trim());
+  });
+
+  return unique.length ? unique : [...defaultStatusCatalog];
 }
 
 function normalizeModalidades(modalidades) {
-  if (!Array.isArray(modalidades)) {
-    return [...defaultModalidades];
-  }
+  const incoming = Array.isArray(modalidades)
+    ? modalidades.map((modalidade) => String(modalidade || '').trim()).filter(Boolean)
+    : [];
 
-  const normalized = modalidades
-    .map((modalidade) => String(modalidade || '').trim())
-    .filter(Boolean);
-
+  const normalized = [...defaultModalidades, ...incoming];
   const unique = [];
   const seen = new Set();
 
   normalized.forEach((modalidade) => {
-    const key = modalidade.toLowerCase();
-    if (seen.has(key)) {
+    const key = String(modalidade || '').trim().toLowerCase();
+    if (!key || seen.has(key)) {
       return;
     }
     seen.add(key);
-    unique.push(modalidade);
+    unique.push(String(modalidade || '').trim());
   });
 
   return unique.length ? unique : [...defaultModalidades];
@@ -4910,6 +4965,7 @@ function submitProtocolForm(event) {
   const setorDestino = document.getElementById('protocolSetor')?.value?.trim() || '';
   const documentoInput = document.getElementById('protocolDocumento');
   const documento = documentoInput?.files?.[0] || null;
+  const isNaoLicitatoria = Boolean(document.getElementById('protocolNaoLicitatoria')?.checked);
 
   if (!municipio || !orgao || !objeto || !setorDestino) {
     window.alert('Preencha município, órgão/entidade, objeto e setor de destino.');
@@ -4917,18 +4973,23 @@ function submitProtocolForm(event) {
   }
 
   const nup = buildNupNumber();
-  const statusInicial = normalizeStatusCatalog(state.statusCatalog).includes('ETP') ? 'ETP' : (normalizeStatusCatalog(state.statusCatalog)[0] || 'DFD');
-  const assignment = findResponsibleAssignmentByDemandStatus({ municipio, secretaria: orgao, setorResponsavel: setorDestino, setorDestino }, statusInicial);
-  const usuariosSetor = getUsuariosVinculadosAoSetor(setorDestino);
+  const statusCatalog = normalizeStatusCatalog(state.statusCatalog);
+  const statusInicial = isNaoLicitatoria
+    ? (statusCatalog.includes('OFÍCIO / MEMORANDO') ? 'OFÍCIO / MEMORANDO' : (statusCatalog.includes('ETP') ? 'ETP' : (statusCatalog[0] || 'DFD')))
+    : (statusCatalog.includes('ETP') ? 'ETP' : (statusCatalog[0] || 'DFD'));
+  const secretariaInicial = isNaoLicitatoria ? 'Gabinete do Prefeito' : orgao;
+  const setorResponsavelBase = isNaoLicitatoria ? 'Chefia de Gabinete' : setorDestino;
+  const assignment = findResponsibleAssignmentByDemandStatus({ municipio, secretaria: secretariaInicial, setorResponsavel: setorResponsavelBase, setorDestino }, statusInicial);
+  const usuariosSetor = getUsuariosVinculadosAoSetor(setorResponsavelBase);
   const responsavelDefault = assignment?.nome || usuariosSetor[0]?.nome || '-';
-  const setorResponsavelInicial = assignment?.setor || setorDestino;
-  const modalidadeInicial = '-';
+  const setorResponsavelInicial = assignment?.setor || setorResponsavelBase;
+  const modalidadeInicial = isNaoLicitatoria ? 'Adesão à ARP' : '-';
   const numeroOrdemInicial = '-';
   const demand = {
     id: crypto.randomUUID(),
     processoNumero: nup.numero,
     municipio,
-    secretaria: orgao,
+    secretaria: secretariaInicial,
     objeto,
     documentoInicialNome: documento?.name || '-',
     setorDestino,
@@ -4943,6 +5004,7 @@ function submitProtocolForm(event) {
     valorEstimado: '',
     valorContratado: '',
     protocolante: currentUser?.nome || '-',
+    isNaoLicitatoria,
     year: nup.year,
     sequencial: nup.sequencial,
     digitoVerificador: nup.dv,
@@ -4982,6 +5044,7 @@ function openProtocolSummaryModal(demand) {
       <p><strong>Objeto:</strong> ${escapeHtml(demand.objeto)}</p>
       <p><strong>Documento inicial:</strong> ${escapeHtml(demand.documentoInicialNome || '-')}</p>
       <p><strong>Setor de destino:</strong> ${escapeHtml(demand.setorDestino)}</p>
+      <p><strong>Fluxo:</strong> ${escapeHtml(demand.isNaoLicitatoria ? 'Atípico / não licitatório' : 'Licitatório padrão')}</p>
       <p><strong>Responsável:</strong> ${escapeHtml(demand.responsavel)}</p>
       <p><strong>Protocolante:</strong> ${escapeHtml(demand.protocolante)}</p>
       <p><strong>Data:</strong> ${escapeHtml(demand.createdAt)}</p>
