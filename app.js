@@ -1126,8 +1126,11 @@ const modalidades = ['Todas', ...Array.from(new Set(chartData.map((item) => item
 let activeChartBar = null;
 let filtrosPainel = { municipio: [], modalidade: [], secretaria: [], status: [] };
 let filtrosFornecedores = { termo: '' };
+let filtrosContratos = { termo: '' };
 let activeModuleKey = 'painel';
 let selectedSupplierId = fornecedoresData[0]?.id || null;
+let selectedContratoId = null;
+let creatingContratoRecord = false;
 let selectedCorporateEmailId = null;
 let selectedChatRoomId = null;
 let selectedChatMemberIds = new Set();
@@ -2108,7 +2111,7 @@ function escapeHtml(str) {
 }
 
 function getPerfilLabel(perfil) {
-  const labels = { administrador: 'Administrador', usuario: 'Usuário', visualizador: 'Visualizador' };
+  const labels = { administrador: 'Administrador', usuario: 'Usuário', visualizador: 'Visualizador', saneador: 'Saneador' };
   return labels[perfil] || 'Usuário';
 }
 
@@ -3224,6 +3227,7 @@ function renderUsuariosModule(container) {
               <select id="editPerfil">
                 <option value="administrador" ${user.perfil === 'administrador' ? 'selected' : ''}>Administrador</option>
                 <option value="usuario" ${user.perfil === 'usuario' ? 'selected' : ''}>Usuário</option>
+                <option value="saneador" ${user.perfil === 'saneador' ? 'selected' : ''}>Saneador</option>
                 <option value="visualizador" ${user.perfil === 'visualizador' ? 'selected' : ''}>Visualizador</option>
               </select>
             </div>
@@ -3271,6 +3275,7 @@ function renderUsuariosModule(container) {
             <select id="addPerfil">
               <option value="usuario">Usuário</option>
               <option value="administrador">Administrador</option>
+              <option value="saneador">Saneador</option>
               <option value="visualizador">Visualizador</option>
             </select>
           </div>
@@ -3560,6 +3565,7 @@ const initialState = {
   ritosPorModalidade: { ...defaultRitosPorModalidade },
   painelFilters: normalizePainelFilters({}, []),
   painelLayout: normalizePainelLayout(),
+  contratosArps: [],
   alerts: [],
   communications: normalizeCommunicationsState()
 };
@@ -3610,6 +3616,7 @@ function loadState() {
       ritosPorModalidade: normalizeRitosPorModalidade(parsed.ritosPorModalidade, parsed.statusCatalog, parsed.modalidades),
       painelFilters: normalizePainelFilters(parsed.painelFilters, parsed.licitacoesDemandas, parsed.modalidades),
       painelLayout: normalizePainelLayout(parsed.painelLayout),
+      contratosArps: Array.isArray(parsed.contratosArps) ? parsed.contratosArps : [],
       alerts: normalizeAlerts(parsed.alerts),
       communications: normalizeCommunicationsState(parsed.communications)
     };
@@ -3640,6 +3647,7 @@ function buildInitialState() {
     ritosPorModalidade: { ...defaultRitosPorModalidade },
     painelFilters: normalizePainelFilters({}, []),
     painelLayout: normalizePainelLayout(),
+    contratosArps: [],
     alerts: [],
     communications: normalizeCommunicationsState()
   };
@@ -4090,7 +4098,8 @@ function tramitarLicitacaoDemandFromModal(demandId) {
 }
 
 function saveLicitacaoDemandFromModal(demandId) {
-  if (currentUser?.perfil !== 'administrador') {
+  const canFullEdit = String(currentUser?.perfil || '').trim().toLowerCase() === 'administrador' || isSaneador();
+  if (!canFullEdit) {
     return;
   }
 
@@ -4101,6 +4110,12 @@ function saveLicitacaoDemandFromModal(demandId) {
   }
 
   const current = list[index];
+  const isConcluido = String(current?.status || '').trim().toUpperCase() === 'CONCLUÍDO';
+  const isAdmin = String(currentUser?.perfil || '').trim().toLowerCase() === 'administrador';
+  if (isConcluido && !isAdmin && !current?.allowSaneadorEditConcluido) {
+    window.alert('Processo concluído está bloqueado para edição. Solicite liberação ao administrador.');
+    return;
+  }
   const nextStatus = String(document.getElementById('editDemandStatus')?.value || '').trim() || 'DFD';
   const createdAtRaw = String(document.getElementById('editDemandCreatedAt')?.value || '').trim();
   const createdAtDate = createdAtRaw ? new Date(`${createdAtRaw}T00:00:00`) : getDemandCreationDate(current);
@@ -4151,6 +4166,28 @@ function saveLicitacaoDemandFromModal(demandId) {
   if (activeModuleKey === 'licitacoes') {
     renderModuleContent('licitacoes');
   }
+}
+
+function toggleConcluidoAdjustmentPermission(demandId) {
+  if (String(currentUser?.perfil || '').trim().toLowerCase() !== 'administrador') {
+    return;
+  }
+
+  const list = Array.isArray(state.licitacoesDemandas) ? state.licitacoesDemandas : [];
+  const index = list.findIndex((item) => item.id === demandId);
+  if (index === -1) {
+    return;
+  }
+
+  const current = list[index];
+  list[index] = {
+    ...current,
+    allowSaneadorEditConcluido: !Boolean(current.allowSaneadorEditConcluido)
+  };
+
+  state.licitacoesDemandas = list;
+  persistState();
+  openLicitacaoDetailsModal(list[index]);
 }
 
 function bindPriorityTagPicker() {
@@ -4252,11 +4289,15 @@ function openLicitacaoDetailsModal(demand) {
   const prioridade = demand.prioridade || 'Média';
   const prioridadeClass = getPrioridadeClass(prioridade);
   const isAdmin = currentUser?.perfil === 'administrador';
+  const canFullEdit = isAdmin || isSaneador();
+  const isConcluido = String(demand?.status || '').trim().toUpperCase() === 'CONCLUÍDO';
+  const saneadorUnlocked = Boolean(demand?.allowSaneadorEditConcluido);
+  const canEditConcluido = isAdmin || !isConcluido || saneadorUnlocked;
   const isResponsible = String(currentUser?.nome || '').trim().toLowerCase() === String(demand?.responsavel || '').trim().toLowerCase();
-  const canTramitar = isAdmin || isResponsible;
-  const canEditFlow = isAdmin || isResponsible;
+  const canTramitar = (canFullEdit || isResponsible) && canEditConcluido;
+  const canEditFlow = (canFullEdit || isResponsible) && canEditConcluido;
   const createdAtInputValue = toDateInputValue(createdDate);
-  const readonlyAttr = isAdmin ? '' : 'disabled';
+  const readonlyAttr = (canFullEdit && canEditConcluido) ? '' : 'disabled';
   const flowReadonlyAttr = canEditFlow ? '' : 'disabled';
   const setorResponsavel = demand.setorResponsavel || demand.setorDestino || defaultSetoresDestino[0] || '-';
   const usuariosBySetor = getUsuariosVinculadosAoSetor(setorResponsavel);
@@ -4332,7 +4373,8 @@ function openLicitacaoDetailsModal(demand) {
     </div>
     <div class="licitacao-details-actions">
       ${canTramitar ? '<button id="tramitarDemandBtn" type="button">Tramitar</button>' : ''}
-      ${isAdmin ? '<button id="saveDemandChangesBtn" type="button">Salvar alterações</button>' : ''}
+      ${(isAdmin || (canFullEdit && canEditConcluido)) ? '<button id="saveDemandChangesBtn" type="button">Salvar alterações</button>' : ''}
+      ${isAdmin && isConcluido ? `<button id="toggleConcluidoAdjustBtn" class="btn-resolved-toggle ${saneadorUnlocked ? 'enabled' : ''}" type="button">${saneadorUnlocked ? 'Ajuste saneamento: permitido' : 'Permitir ajuste saneamento'}</button>` : ''}
     </div>
   `;
 
@@ -4340,7 +4382,7 @@ function openLicitacaoDetailsModal(demand) {
     bindStatusAndOrderByModalidadePicker(demand.id);
   }
 
-  if (isAdmin) {
+  if (canFullEdit) {
     bindPriorityTagPicker();
     bindResponsavelBySetorPicker();
     const saveBtn = document.getElementById('saveDemandChangesBtn');
@@ -4352,6 +4394,11 @@ function openLicitacaoDetailsModal(demand) {
   const tramitarBtn = document.getElementById('tramitarDemandBtn');
   if (tramitarBtn) {
     tramitarBtn.addEventListener('click', () => tramitarLicitacaoDemandFromModal(demand.id));
+  }
+
+  const toggleBtn = document.getElementById('toggleConcluidoAdjustBtn');
+  if (toggleBtn) {
+    toggleBtn.addEventListener('click', () => toggleConcluidoAdjustmentPermission(demand.id));
   }
 
   modal.classList.add('active');
@@ -4683,11 +4730,148 @@ function parseDate(dateString) {
     return null;
   }
 
-  const [day, month, year] = dateString.split('/').map((value) => Number(value));
+  const raw = String(dateString || '').trim();
+  if (!raw) {
+    return null;
+  }
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    const [year, month, day] = raw.split('-').map((value) => Number(value));
+    if (!year || !month || !day) {
+      return null;
+    }
+    return new Date(year, month - 1, day);
+  }
+
+  const [day, month, year] = raw.split('/').map((value) => Number(value));
   if (!day || !month || !year) {
     return null;
   }
   return new Date(year, month - 1, day);
+}
+
+function formatDateForDisplay(dateValue) {
+  const parsed = parseDate(dateValue);
+  if (!parsed) {
+    return String(dateValue || '-');
+  }
+  return parsed.toLocaleDateString('pt-BR');
+}
+
+function normalizeDateInputValue(dateValue) {
+  const parsed = parseDate(dateValue);
+  if (!parsed) {
+    return '';
+  }
+  return toDateInputValue(parsed);
+}
+
+const defaultFundosByMunicipio = {
+  'Bom Conselho/PE': [
+    'Tesouro Municipal',
+    'Fundo da Saúde',
+    'Fundo da Assistência',
+    'Fundo da Educação'
+  ]
+};
+
+function getFundosByMunicipioAndSecretaria(municipio, secretaria) {
+  const city = String(municipio || '').trim();
+  const office = String(secretaria || '').trim().toLowerCase();
+  const base = [...(defaultFundosByMunicipio[city] || ['Tesouro Municipal', 'Fundo da Saúde', 'Fundo da Assistência', 'Fundo da Educação'])];
+
+  const priorities = [];
+  if (office.includes('saúde') || office.includes('saude')) {
+    priorities.push('Fundo da Saúde');
+  }
+  if (office.includes('educação') || office.includes('educacao')) {
+    priorities.push('Fundo da Educação');
+  }
+  if (office.includes('assist') || office.includes('desenvolvimento social')) {
+    priorities.push('Fundo da Assistência');
+  }
+  if (office.includes('administração') || office.includes('administracao') || !priorities.length) {
+    priorities.push('Tesouro Municipal');
+  }
+
+  return Array.from(new Set([...priorities, ...base]));
+}
+
+function normalizeCnpj(value) {
+  return String(value || '').replace(/\D/g, '');
+}
+
+function getFornecedoresCatalog() {
+  const staticSuppliers = fornecedoresData.map((supplier) => ({ ...supplier, vinculos: Array.isArray(supplier.vinculos) ? supplier.vinculos.map((item) => ({ ...item })) : [], isReadonly: false }));
+  const contratos = getContratoArpRecords();
+  const groupedDynamic = new Map();
+
+  contratos.forEach((record) => {
+    const nomeEmpresa = String(record.empresaNome || '').trim();
+    const cnpj = normalizeCnpj(record.empresaCnpj);
+    if (!nomeEmpresa && !cnpj) {
+      return;
+    }
+
+    const key = cnpj || nomeEmpresa.toLowerCase();
+    if (!groupedDynamic.has(key)) {
+      groupedDynamic.set(key, {
+        id: `dyn-${key}`,
+        nome: nomeEmpresa || 'Empresa sem nome',
+        cnpj: record.empresaCnpj || '-',
+        objeto: record.objeto || '-',
+        fundo: record.fundo || '-',
+        fonte: 'Cadastro do módulo Gestão de Contratos / ARPs',
+        vinculos: [],
+        isReadonly: true
+      });
+    }
+
+    const target = groupedDynamic.get(key);
+    target.vinculos.push({
+      tipo: record.tipo,
+      numero: record.numero,
+      status: record.status || 'Vigente',
+      objeto: record.objeto,
+      fundo: record.fundo,
+      dataInicio: record.dataInicio,
+      dataTermino: record.dataTermino,
+      parentId: record.parentId || record.processoOrigem || null
+    });
+  });
+
+  groupedDynamic.forEach((dynamicSupplier) => {
+    const cnpjKey = normalizeCnpj(dynamicSupplier.cnpj);
+    const sameIndex = staticSuppliers.findIndex((supplier) => {
+      const supplierCnpj = normalizeCnpj(supplier.cnpj);
+      if (cnpjKey && supplierCnpj) {
+        return supplierCnpj === cnpjKey;
+      }
+      return String(supplier.nome || '').trim().toLowerCase() === String(dynamicSupplier.nome || '').trim().toLowerCase();
+    });
+
+    if (sameIndex >= 0) {
+      const supplier = staticSuppliers[sameIndex];
+      const existingKeys = new Set((supplier.vinculos || []).map((item) => `${item.tipo}::${item.numero}::${item.dataInicio || ''}`));
+      dynamicSupplier.vinculos.forEach((item) => {
+        const key = `${item.tipo}::${item.numero}::${item.dataInicio || ''}`;
+        if (!existingKeys.has(key)) {
+          supplier.vinculos.push(item);
+        }
+      });
+      if ((!supplier.cnpj || supplier.cnpj === '-') && dynamicSupplier.cnpj && dynamicSupplier.cnpj !== '-') {
+        supplier.cnpj = dynamicSupplier.cnpj;
+      }
+      if ((!supplier.objeto || supplier.objeto === '-') && dynamicSupplier.objeto && dynamicSupplier.objeto !== '-') {
+        supplier.objeto = dynamicSupplier.objeto;
+      }
+      return;
+    }
+
+    staticSuppliers.push(dynamicSupplier);
+  });
+
+  return staticSuppliers;
 }
 
 function normalizeSupplierVinculoType(input) {
@@ -4707,7 +4891,164 @@ function normalizeSupplierVinculoType(input) {
   return null;
 }
 
+function isSaneador(user = currentUser) {
+  return String(user?.perfil || '').trim().toLowerCase() === 'saneador';
+}
+
+function canEditContratosModule(user = currentUser) {
+  return String(user?.perfil || '').trim().toLowerCase() === 'administrador' || isSaneador(user);
+}
+
+function normalizeContratoTipo(input) {
+  const normalized = String(input || '').trim().toLowerCase();
+  if (normalized === 'contrato') {
+    return 'Contrato';
+  }
+  if (normalized === 'arp') {
+    return 'ARP';
+  }
+  if (normalized === 'aditivo' || normalized === 'termo aditivo') {
+    return 'Aditivo';
+  }
+  return null;
+}
+
+function normalizeContratoArpRecords(records) {
+  if (!Array.isArray(records)) {
+    return [];
+  }
+
+  return records
+    .filter((record) => record && typeof record === 'object')
+    .map((record) => ({
+      id: String(record.id || crypto.randomUUID()),
+      tipo: normalizeContratoTipo(record.tipo) || 'Contrato',
+      numero: String(record.numero || '-').trim() || '-',
+      objeto: String(record.objeto || '-').trim() || '-',
+      empresaNome: String(record.empresaNome || '').trim(),
+      empresaCnpj: String(record.empresaCnpj || '').trim(),
+      municipio: String(record.municipio || '-').trim() || '-',
+      secretaria: String(record.secretaria || '-').trim() || '-',
+      setorResponsavel: String(record.setorResponsavel || record.setorDestino || '-').trim() || '-',
+      fundo: String(record.fundo || '-').trim() || '-',
+      dataInicio: normalizeDateInputValue(record.dataInicio),
+      dataTermino: normalizeDateInputValue(record.dataTermino),
+      parentId: record.parentId ? String(record.parentId).trim() : null,
+      processoOrigem: String(record.processoOrigem || '').trim(),
+      modalidade: String(record.modalidade || '-').trim() || '-',
+      status: String(record.status || '').trim() || 'ETP',
+      processoNumero: String(record.processoNumero || '').trim() || '',
+      demandId: String(record.demandId || '').trim() || '',
+      createdAtIso: String(record.createdAtIso || new Date().toISOString()),
+      createdBy: String(record.createdBy || currentUser?.nome || 'Sistema').trim()
+    }));
+}
+
+function getContratoArpRecords() {
+  state.contratosArps = normalizeContratoArpRecords(state.contratosArps);
+  return state.contratosArps;
+}
+
+function buildDemandPayloadFromContrato(record, existingDemand = null) {
+  const modalidade = String(record.modalidade || '').trim() || (existingDemand?.modalidade || '-');
+  const status = String(record.status || '').trim() || (existingDemand?.status || 'ETP');
+  const setorBase = String(record.setorResponsavel || '-').trim() || '-';
+  const assignment = findResponsibleAssignmentByDemandStatus({
+    municipio: record.municipio,
+    secretaria: record.secretaria,
+    setorResponsavel: setorBase,
+    setorDestino: setorBase
+  }, status);
+  const fallbackUsers = getUsuariosVinculadosAoSetor(setorBase);
+  const responsavel = assignment?.nome || fallbackUsers[0]?.nome || String(existingDemand?.responsavel || '-').trim() || '-';
+  const setorResponsavel = assignment?.setor || setorBase;
+
+  return {
+    id: existingDemand?.id || crypto.randomUUID(),
+    processoNumero: String(existingDemand?.processoNumero || record.processoNumero || '-').trim() || '-',
+    municipio: String(record.municipio || existingDemand?.municipio || '-').trim() || '-',
+    secretaria: String(record.secretaria || existingDemand?.secretaria || '-').trim() || '-',
+    objeto: String(record.objeto || existingDemand?.objeto || '-').trim() || '-',
+    documentoInicialNome: String(existingDemand?.documentoInicialNome || `${record.tipo} ${record.numero}` || '-').trim(),
+    setorDestino: setorResponsavel,
+    setorResponsavel,
+    responsavel,
+    responsavelDesignadoAt: new Date().toISOString(),
+    status,
+    statusUpdatedAt: new Date().toISOString(),
+    modalidade,
+    numeroOrdem: modalidade && modalidade !== '-' ? getNextNumeroOrdemByModalidade(modalidade, existingDemand?.id || null) : '-',
+    prioridade: String(existingDemand?.prioridade || 'Média'),
+    valorEstimado: String(existingDemand?.valorEstimado || ''),
+    valorContratado: String(existingDemand?.valorContratado || ''),
+    empresaNome: String(record.empresaNome || existingDemand?.empresaNome || '').trim(),
+    empresaCnpj: String(record.empresaCnpj || existingDemand?.empresaCnpj || '').trim(),
+    processoOrigem: String(record.processoOrigem || existingDemand?.processoOrigem || '').trim(),
+    protocolante: String(existingDemand?.protocolante || currentUser?.nome || '-'),
+    year: existingDemand?.year,
+    sequencial: existingDemand?.sequencial,
+    digitoVerificador: existingDemand?.digitoVerificador,
+    unidade: existingDemand?.unidade,
+    createdAt: String(existingDemand?.createdAt || new Date().toLocaleDateString('pt-BR')),
+    createdAtIso: String(existingDemand?.createdAtIso || new Date().toISOString()),
+    sourceModule: 'contratos',
+    contratoArpId: record.id
+  };
+}
+
+function upsertLicitacaoDemandFromContrato(record) {
+  state.licitacoesDemandas = Array.isArray(state.licitacoesDemandas) ? state.licitacoesDemandas : [];
+
+  const existingIndex = state.licitacoesDemandas.findIndex((item) => item.id === record.demandId || item.contratoArpId === record.id);
+  if (existingIndex >= 0) {
+    const existing = state.licitacoesDemandas[existingIndex];
+    const updated = buildDemandPayloadFromContrato(record, existing);
+    state.licitacoesDemandas[existingIndex] = updated;
+    return updated;
+  }
+
+  const nup = buildNupNumber();
+  const createdDemand = buildDemandPayloadFromContrato({
+    ...record,
+    processoNumero: `${nup.numero}`
+  });
+  createdDemand.year = nup.year;
+  createdDemand.sequencial = nup.sequencial;
+  createdDemand.digitoVerificador = nup.dv;
+  createdDemand.unidade = nup.unidade;
+
+  state.licitacoesDemandas.unshift(createdDemand);
+  state.protocoloSequencial = nup.sequencial + 1;
+  return createdDemand;
+}
+
+function saveContratoArpRecord(inputRecord, existingId = null) {
+  const records = getContratoArpRecords();
+  const normalized = normalizeContratoArpRecords([{ ...inputRecord, id: existingId || inputRecord.id || crypto.randomUUID() }])[0];
+
+  const updatedDemand = upsertLicitacaoDemandFromContrato(normalized);
+  normalized.demandId = updatedDemand.id;
+  normalized.processoNumero = updatedDemand.processoNumero;
+  normalized.status = updatedDemand.status;
+  normalized.processoOrigem = String(inputRecord?.processoOrigem || normalized.processoOrigem || '').trim();
+
+  const idx = records.findIndex((item) => item.id === normalized.id);
+  if (idx >= 0) {
+    records[idx] = normalized;
+  } else {
+    records.unshift(normalized);
+  }
+
+  state.contratosArps = normalizeContratoArpRecords(records);
+  return normalized;
+}
+
 function createSupplierVinculo(supplier) {
+  if (String(supplier?.id || '').startsWith('dyn-') || supplier?.isReadonly) {
+    window.alert('Este fornecedor é gerado automaticamente pelo módulo de contratos. Edite os vínculos no módulo Gestão de Contratos / ARPs.');
+    return;
+  }
+
   const tipo = normalizeSupplierVinculoType(window.prompt('Tipo de vínculo: Contrato, ARP, Aditivo ou Apostilamento'));
   if (!tipo) {
     window.alert('Informe um tipo válido: Contrato, ARP, Aditivo ou Apostilamento.');
@@ -4777,6 +5118,11 @@ function createSupplierVinculo(supplier) {
 }
 
 function deleteSupplierById(supplierId) {
+  if (String(supplierId || '').startsWith('dyn-')) {
+    window.alert('Fornecedor sincronizado do módulo de contratos. Exclua o registro no módulo Gestão de Contratos / ARPs.');
+    return;
+  }
+
   const supplierIndex = fornecedoresData.findIndex((fornecedor) => fornecedor.id === supplierId);
   if (supplierIndex === -1) {
     return;
@@ -5926,13 +6272,358 @@ function renderModuleContent(moduleKey) {
     return;
   }
 
+  if (moduleKey === 'contratos') {
+    const canEdit = canEditContratosModule();
+    const records = getContratoArpRecords();
+    const termo = String(filtrosContratos.termo || '').trim().toLowerCase();
+    const filteredRecords = records.filter((item) => {
+      if (!termo) {
+        return true;
+      }
+      return [item.tipo, item.numero, item.objeto, item.processoNumero, item.secretaria, item.municipio]
+        .concat([item.empresaNome, item.empresaCnpj])
+        .some((value) => String(value || '').toLowerCase().includes(termo));
+    });
+
+    if (!selectedContratoId && filteredRecords.length) {
+      selectedContratoId = filteredRecords[0].id;
+    }
+
+    let selectedRecord = filteredRecords.find((item) => item.id === selectedContratoId)
+      || records.find((item) => item.id === selectedContratoId)
+      || filteredRecords[0]
+      || records[0]
+      || null;
+
+    if (!selectedRecord && !creatingContratoRecord && canEdit) {
+      creatingContratoRecord = true;
+    }
+
+    const draftRecord = {
+      id: '__new__',
+      tipo: 'Contrato',
+      numero: '',
+      objeto: '',
+      empresaNome: '',
+      empresaCnpj: '',
+      municipio: getMunicipiosList()[0] || '-',
+      secretaria: '',
+      setorResponsavel: normalizeSetoresDestino(state.setoresDestino)[0] || '-',
+      fundo: 'Tesouro Municipal',
+      dataInicio: '',
+      dataTermino: '',
+      parentId: '',
+      processoOrigem: '',
+      modalidade: '-',
+      status: normalizeStatusCatalog(state.statusCatalog).includes('ETP') ? 'ETP' : (normalizeStatusCatalog(state.statusCatalog)[0] || 'ETP'),
+      processoNumero: '',
+      demandId: ''
+    };
+
+    if (creatingContratoRecord && canEdit) {
+      selectedRecord = draftRecord;
+    }
+
+    const selectedRecordId = selectedRecord?.id || null;
+    const modalidadesList = normalizeModalidades(state.modalidades);
+    const statusCatalog = normalizeStatusCatalog(state.statusCatalog);
+    const baseParentOptions = records
+      .filter((item) => item.tipo === 'Contrato' || item.tipo === 'ARP')
+      .map((item) => `<option value="${escapeHtml(item.numero)}" ${item.numero === selectedRecord?.parentId ? 'selected' : ''}>${escapeHtml(item.tipo)} ${escapeHtml(item.numero)}</option>`)
+      .join('');
+
+    const processosOrigemOptions = (Array.isArray(state.licitacoesDemandas) ? state.licitacoesDemandas : [])
+      .map((item) => String(item?.processoNumero || '').trim())
+      .filter(Boolean)
+      .sort((a, b) => a.localeCompare(b, 'pt-BR'));
+
+    const fundosOptions = getFundosByMunicipioAndSecretaria(selectedRecord?.municipio, selectedRecord?.secretaria);
+
+    container.innerHTML = `
+      <section class="panel supplier-panel">
+        <div class="hero-panel">
+          <div>
+            <p class="eyebrow">Gestão contratual</p>
+            <h2>Gestão de Contratos / ARPs</h2>
+            <p class="subtitle">Cadastro de contratos, ARPs e termos aditivos avulsos com geração de processo vinculada.</p>
+          </div>
+        </div>
+
+        <div class="supplier-toolbar">
+          <label class="field search-field">
+            <span>Buscar registro</span>
+            <input id="contratoSearch" type="search" placeholder="Digite número, tipo, processo ou objeto" value="${escapeHtml(filtrosContratos.termo)}" />
+          </label>
+          <div class="supplier-toolbar-actions">
+            ${canEdit ? '<button id="addContratoRecordBtn" class="supplier-toolbar-btn" type="button">+ Novo registro</button>' : ''}
+          </div>
+        </div>
+
+        <div class="supplier-layout">
+          <div class="supplier-list-panel">
+            ${filteredRecords.length ? filteredRecords.map((record) => `
+              <div class="supplier-card-shell">
+                <button class="supplier-card ${record.id === selectedRecordId ? 'active' : ''}" type="button" data-contrato-id="${escapeHtml(record.id)}">
+                  <strong>${escapeHtml(record.tipo)} ${escapeHtml(record.numero || '-')}</strong>
+                  <span>${escapeHtml(record.processoNumero || 'Sem processo')}</span>
+                  <small class="subtle-meta">${escapeHtml(record.empresaNome || 'Empresa não informada')} • ${escapeHtml(record.municipio || '-')} • ${escapeHtml(record.secretaria || '-')}</small>
+                </button>
+                ${canEdit ? `<button class="supplier-card-delete" type="button" title="Excluir registro" aria-label="Excluir registro ${escapeHtml(record.numero || record.id)}" data-delete-contrato-id="${escapeHtml(record.id)}">🗑️</button>` : ''}
+              </div>
+            `).join('') : '<div class="empty-state">Nenhum registro encontrado com este filtro.</div>'}
+          </div>
+
+          <div class="supplier-detail-panel">
+            ${selectedRecord ? `
+              <div class="detail-header">
+                <p class="eyebrow">Dados do registro</p>
+                <h3>${escapeHtml(selectedRecord.tipo)} ${escapeHtml(selectedRecord.numero || '')}</h3>
+                <p>Processo vinculado: ${escapeHtml(selectedRecord.processoNumero || 'será criado ao salvar')}</p>
+              </div>
+
+              <div class="detail-section">
+                <div class="detail-grid">
+                  <div class="detail-row full">
+                    <span>Nome da empresa</span>
+                    <input id="contratoEmpresaNome" type="text" value="${escapeHtml(selectedRecord.empresaNome || '')}" ${canEdit ? '' : 'disabled'} />
+                  </div>
+                  <div class="detail-row">
+                    <span>CNPJ</span>
+                    <input id="contratoEmpresaCnpj" type="text" value="${escapeHtml(selectedRecord.empresaCnpj || '')}" ${canEdit ? '' : 'disabled'} />
+                  </div>
+                  <div class="detail-row">
+                    <span>Tipo</span>
+                    <select id="contratoTipo" ${canEdit ? '' : 'disabled'}>
+                      <option value="Contrato" ${selectedRecord.tipo === 'Contrato' ? 'selected' : ''}>Contrato</option>
+                      <option value="ARP" ${selectedRecord.tipo === 'ARP' ? 'selected' : ''}>ARP</option>
+                      <option value="Aditivo" ${selectedRecord.tipo === 'Aditivo' ? 'selected' : ''}>Termo Aditivo (avulso)</option>
+                    </select>
+                  </div>
+                  <div class="detail-row">
+                    <span>Número</span>
+                    <input id="contratoNumero" type="text" value="${escapeHtml(selectedRecord.numero || '')}" ${canEdit ? '' : 'disabled'} />
+                  </div>
+                  <div class="detail-row full">
+                    <span>Objeto</span>
+                    <textarea id="contratoObjeto" rows="3" ${canEdit ? '' : 'disabled'}>${escapeHtml(selectedRecord.objeto || '')}</textarea>
+                  </div>
+                  <div class="detail-row">
+                    <span>Município</span>
+                    <select id="contratoMunicipio" ${canEdit ? '' : 'disabled'}>
+                      <option value="-" ${selectedRecord.municipio === '-' ? 'selected' : ''}>-</option>
+                      ${getMunicipiosList().map((municipio) => `<option value="${escapeHtml(municipio)}" ${selectedRecord.municipio === municipio ? 'selected' : ''}>${escapeHtml(municipio)}</option>`).join('')}
+                    </select>
+                  </div>
+                  <div class="detail-row">
+                    <span>Secretaria</span>
+                    <select id="contratoSecretaria" ${canEdit ? '' : 'disabled'}></select>
+                  </div>
+                  <div class="detail-row">
+                    <span>Setor responsável</span>
+                    <select id="contratoSetor" ${canEdit ? '' : 'disabled'}>
+                      ${normalizeSetoresDestino(state.setoresDestino).map((setor) => `<option value="${escapeHtml(setor)}" ${selectedRecord.setorResponsavel === setor ? 'selected' : ''}>${escapeHtml(setor)}</option>`).join('')}
+                    </select>
+                  </div>
+                  <div class="detail-row">
+                    <span>Fundo</span>
+                    <select id="contratoFundo" ${canEdit ? '' : 'disabled'}>
+                      ${fundosOptions.map((fundo) => `<option value="${escapeHtml(fundo)}" ${selectedRecord.fundo === fundo ? 'selected' : ''}>${escapeHtml(fundo)}</option>`).join('')}
+                    </select>
+                  </div>
+                  <div class="detail-row">
+                    <span>Modalidade</span>
+                    <select id="contratoModalidade" ${canEdit ? '' : 'disabled'}>
+                      <option value="-" ${selectedRecord.modalidade === '-' ? 'selected' : ''}>-</option>
+                      ${modalidadesList.map((modalidade) => `<option value="${escapeHtml(modalidade)}" ${selectedRecord.modalidade === modalidade ? 'selected' : ''}>${escapeHtml(modalidade)}</option>`).join('')}
+                    </select>
+                  </div>
+                  <div class="detail-row">
+                    <span>Status</span>
+                    <select id="contratoStatus" ${canEdit ? '' : 'disabled'}>
+                      ${statusCatalog.map((status) => `<option value="${escapeHtml(status)}" ${selectedRecord.status === status ? 'selected' : ''}>${escapeHtml(status)}</option>`).join('')}
+                    </select>
+                  </div>
+                  <div class="detail-row">
+                    <span>Data de início</span>
+                    <input id="contratoDataInicio" type="date" value="${escapeHtml(normalizeDateInputValue(selectedRecord.dataInicio || ''))}" ${canEdit ? '' : 'disabled'} />
+                  </div>
+                  <div class="detail-row">
+                    <span>Data de vigência/término</span>
+                    <input id="contratoDataTermino" type="date" value="${escapeHtml(normalizeDateInputValue(selectedRecord.dataTermino || ''))}" ${canEdit ? '' : 'disabled'} />
+                  </div>
+                  <div class="detail-row">
+                    <span>Vínculo principal (opcional)</span>
+                    <select id="contratoParent" ${canEdit ? '' : 'disabled'}>
+                      <option value="">Avulso</option>
+                      ${baseParentOptions}
+                    </select>
+                  </div>
+                  <div class="detail-row">
+                    <span>Processo original (opcional)</span>
+                    <input id="contratoProcessoOrigem" list="contratoProcessoOrigemList" value="${escapeHtml(selectedRecord.processoOrigem || '')}" ${canEdit ? '' : 'disabled'} />
+                    <datalist id="contratoProcessoOrigemList">
+                      ${processosOrigemOptions.map((numero) => `<option value="${escapeHtml(numero)}"></option>`).join('')}
+                    </datalist>
+                  </div>
+                  <div class="detail-row">
+                    <span>Processo criado</span>
+                    <strong>${escapeHtml(selectedRecord.processoNumero || '-')}</strong>
+                  </div>
+                </div>
+              </div>
+
+              ${canEdit ? `
+                <div class="form-actions">
+                  <button class="btn-save" id="saveContratoRecordBtn" type="button">Salvar registro</button>
+                  ${creatingContratoRecord ? '<button class="btn-cancel" id="cancelContratoRecordBtn" type="button">Cancelar</button>' : ''}
+                </div>
+              ` : ''}
+            ` : '<div class="empty-state">Selecione um registro à esquerda para visualizar ou editar.</div>'}
+          </div>
+        </div>
+      </section>
+    `;
+
+    const searchEl = document.getElementById('contratoSearch');
+    if (searchEl) {
+      searchEl.addEventListener('input', (event) => {
+        filtrosContratos.termo = event.target.value;
+        renderModuleContent('contratos');
+      });
+    }
+
+    const addBtn = document.getElementById('addContratoRecordBtn');
+    if (addBtn) {
+      addBtn.addEventListener('click', () => {
+        creatingContratoRecord = true;
+        selectedContratoId = null;
+        renderModuleContent('contratos');
+      });
+    }
+
+    container.querySelectorAll('[data-contrato-id]').forEach((button) => {
+      button.addEventListener('click', () => {
+        selectedContratoId = button.getAttribute('data-contrato-id');
+        creatingContratoRecord = false;
+        renderModuleContent('contratos');
+      });
+    });
+
+    container.querySelectorAll('[data-delete-contrato-id]').forEach((button) => {
+      button.addEventListener('click', (event) => {
+        event.stopPropagation();
+        const recordId = button.getAttribute('data-delete-contrato-id');
+        if (!recordId) {
+          return;
+        }
+        if (!window.confirm('Excluir este registro contratual?')) {
+          return;
+        }
+        const current = getContratoArpRecords().find((item) => item.id === recordId);
+        state.contratosArps = getContratoArpRecords().filter((item) => item.id !== recordId);
+        if (current?.demandId) {
+          state.licitacoesDemandas = (Array.isArray(state.licitacoesDemandas) ? state.licitacoesDemandas : []).filter((item) => item.id !== current.demandId);
+        }
+        selectedContratoId = null;
+        persistState();
+        renderModuleContent('contratos');
+      });
+    });
+
+    const municipioSelect = document.getElementById('contratoMunicipio');
+    const secretariaSelect = document.getElementById('contratoSecretaria');
+    const syncSecretarias = () => {
+      if (!municipioSelect || !secretariaSelect) {
+        return;
+      }
+      const municipio = String(municipioSelect.value || '').trim();
+      const secretarias = municipio && municipio !== '-' ? getSecretariasByMunicipio(municipio) : [];
+      const currentSecretaria = String(secretariaSelect.value || selectedRecord?.secretaria || '').trim();
+      secretariaSelect.innerHTML = ['<option value="-">-</option>', ...secretarias.map((secretaria) => `<option value="${escapeHtml(secretaria)}">${escapeHtml(secretaria)}</option>`)].join('');
+      if (secretarias.includes(currentSecretaria)) {
+        secretariaSelect.value = currentSecretaria;
+      } else if (secretarias.length) {
+        secretariaSelect.value = secretarias[0];
+      } else {
+        secretariaSelect.value = '-';
+      }
+
+      const fundoSelect = document.getElementById('contratoFundo');
+      if (fundoSelect) {
+        const fundos = getFundosByMunicipioAndSecretaria(municipioSelect.value, secretariaSelect.value);
+        const currentFundo = String(fundoSelect.value || selectedRecord?.fundo || '').trim();
+        fundoSelect.innerHTML = fundos.map((fundo) => `<option value="${escapeHtml(fundo)}">${escapeHtml(fundo)}</option>`).join('');
+        if (fundos.includes(currentFundo)) {
+          fundoSelect.value = currentFundo;
+        } else if (fundos.length) {
+          fundoSelect.value = fundos[0];
+        }
+      }
+    };
+    if (municipioSelect && secretariaSelect) {
+      syncSecretarias();
+      municipioSelect.addEventListener('change', syncSecretarias);
+      secretariaSelect.addEventListener('change', syncSecretarias);
+    }
+
+    const cancelBtn = document.getElementById('cancelContratoRecordBtn');
+    if (cancelBtn) {
+      cancelBtn.addEventListener('click', () => {
+        creatingContratoRecord = false;
+        renderModuleContent('contratos');
+      });
+    }
+
+    const saveBtn = document.getElementById('saveContratoRecordBtn');
+    if (saveBtn && canEdit) {
+      saveBtn.addEventListener('click', () => {
+        const payload = {
+          empresaNome: String(document.getElementById('contratoEmpresaNome')?.value || '').trim(),
+          empresaCnpj: String(document.getElementById('contratoEmpresaCnpj')?.value || '').trim(),
+          tipo: String(document.getElementById('contratoTipo')?.value || 'Contrato').trim(),
+          numero: String(document.getElementById('contratoNumero')?.value || '').trim(),
+          objeto: String(document.getElementById('contratoObjeto')?.value || '').trim(),
+          municipio: String(document.getElementById('contratoMunicipio')?.value || '-').trim(),
+          secretaria: String(document.getElementById('contratoSecretaria')?.value || '-').trim(),
+          setorResponsavel: String(document.getElementById('contratoSetor')?.value || '-').trim(),
+          fundo: String(document.getElementById('contratoFundo')?.value || '').trim(),
+          dataInicio: normalizeDateInputValue(document.getElementById('contratoDataInicio')?.value || ''),
+          dataTermino: normalizeDateInputValue(document.getElementById('contratoDataTermino')?.value || ''),
+          parentId: String(document.getElementById('contratoParent')?.value || '').trim() || null,
+          processoOrigem: String(document.getElementById('contratoProcessoOrigem')?.value || '').trim(),
+          modalidade: String(document.getElementById('contratoModalidade')?.value || '-').trim(),
+          status: String(document.getElementById('contratoStatus')?.value || 'ETP').trim(),
+          processoNumero: selectedRecord?.processoNumero || '',
+          demandId: selectedRecord?.demandId || '',
+          createdAtIso: selectedRecord?.createdAtIso || new Date().toISOString(),
+          createdBy: selectedRecord?.createdBy || currentUser?.nome || 'Sistema'
+        };
+
+        if (!payload.empresaNome || !payload.empresaCnpj || !payload.numero || !payload.objeto) {
+          window.alert('Preencha empresa, CNPJ, número e objeto para salvar o registro.');
+          return;
+        }
+
+        const saved = saveContratoArpRecord(payload, creatingContratoRecord ? null : selectedRecord?.id);
+        state.contratosArps = getContratoArpRecords();
+        selectedContratoId = saved.id;
+        creatingContratoRecord = false;
+        persistState();
+        renderModuleContent('contratos');
+      });
+    }
+
+    return;
+  }
+
   if (moduleKey === 'fornecedores') {
     const searchInput = document.getElementById('supplierSearch');
     const shouldRestoreSearchFocus = document.activeElement === searchInput;
     const selectionStart = shouldRestoreSearchFocus ? searchInput.selectionStart : null;
     const selectionEnd = shouldRestoreSearchFocus ? searchInput.selectionEnd : null;
 
-    const filteredSuppliers = fornecedoresData.filter((fornecedor) => {
+    const fornecedoresCatalog = getFornecedoresCatalog();
+    const filteredSuppliers = fornecedoresCatalog.filter((fornecedor) => {
       const termo = filtrosFornecedores.termo.trim().toLowerCase();
       if (!termo) {
         return true;
@@ -5940,7 +6631,7 @@ function renderModuleContent(moduleKey) {
       return fornecedor.nome.toLowerCase().includes(termo) || fornecedor.objeto.toLowerCase().includes(termo);
     });
 
-    const selectedSupplier = filteredSuppliers.find((fornecedor) => fornecedor.id === selectedSupplierId) || filteredSuppliers[0] || fornecedoresData[0];
+    const selectedSupplier = filteredSuppliers.find((fornecedor) => fornecedor.id === selectedSupplierId) || filteredSuppliers[0] || fornecedoresCatalog[0];
     if (selectedSupplier) {
       selectedSupplierId = selectedSupplier.id;
     }
@@ -5961,7 +6652,7 @@ function renderModuleContent(moduleKey) {
             <input id="supplierSearch" type="search" placeholder="Digite o nome do fornecedor" value="${filtrosFornecedores.termo}" />
           </label>
           <div class="supplier-toolbar-actions">
-            <button id="addSupplierVinculoBtn" class="supplier-toolbar-btn" type="button">Adicionar vínculo</button>
+            ${selectedSupplier?.isReadonly ? '<button class="supplier-toolbar-btn" type="button" disabled title="Gerenciado pelo módulo de contratos">Vínculo gerenciado em Contratos</button>' : '<button id="addSupplierVinculoBtn" class="supplier-toolbar-btn" type="button">Adicionar vínculo</button>'}
           </div>
         </div>
 
@@ -5974,7 +6665,7 @@ function renderModuleContent(moduleKey) {
                   <span>${escapeHtml(fornecedor.cnpj)}</span>
                   <small class="subtle-meta">${escapeHtml(fornecedor.vinculos?.[0]?.tipo || 'Vínculo')} ${escapeHtml(fornecedor.vinculos?.[0]?.numero || '')}</small>
                 </button>
-                <button class="supplier-card-delete" type="button" title="Excluir fornecedor" aria-label="Excluir fornecedor ${escapeHtml(fornecedor.nome)}" data-supplier-id="${escapeHtml(fornecedor.id)}">🗑️</button>
+                ${fornecedor.isReadonly ? '' : `<button class="supplier-card-delete" type="button" title="Excluir fornecedor" aria-label="Excluir fornecedor ${escapeHtml(fornecedor.nome)}" data-supplier-id="${escapeHtml(fornecedor.id)}">🗑️</button>`}
               </div>
             `).join('') : '<div class="empty-state">Nenhum fornecedor encontrado com este filtro.</div>'}
           </div>
@@ -6009,8 +6700,8 @@ function renderModuleContent(moduleKey) {
                         </div>
                         <p>${escapeHtml(vinculo.objeto)}</p>
                         <div class="vinculo-dates">
-                          <div><span>Data de início</span><strong>${escapeHtml(vinculo.dataInicio || '-')}</strong></div>
-                          <div><span>Data de término</span><strong>${escapeHtml(vinculo.dataTermino || '-')}</strong></div>
+                          <div><span>Data de início</span><strong>${escapeHtml(formatDateForDisplay(vinculo.dataInicio || '-'))}</strong></div>
+                          <div><span>Data de término</span><strong>${escapeHtml(formatDateForDisplay(vinculo.dataTermino || '-'))}</strong></div>
                         </div>
                         <div class="detail-row compact">
                           <span>Fundo</span>
@@ -6019,7 +6710,7 @@ function renderModuleContent(moduleKey) {
                         ${(vinculo.tipo === 'Aditivo' || vinculo.tipo === 'Apostilamento') ? `
                           <div class="parent-link-row">
                             <label for="parentSelect-${index}">Vincular a</label>
-                            <select id="parentSelect-${index}" class="parent-select" data-supplier-id="${escapeHtml(selectedSupplier.id)}" data-vinculo-index="${index}">
+                            <select id="parentSelect-${index}" class="parent-select" data-supplier-id="${escapeHtml(selectedSupplier.id)}" data-vinculo-index="${index}" ${selectedSupplier?.isReadonly ? 'disabled' : ''}>
                               <option value="">Selecione um Contrato ou ARP</option>
                               ${parentOptions}
                             </select>
