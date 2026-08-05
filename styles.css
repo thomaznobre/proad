@@ -2136,6 +2136,8 @@ body.col-resize-active * {
   margin-top: 0.9rem;
   display: flex;
   justify-content: flex-end;
+  gap: 0.65rem;
+  flex-wrap: wrap;
 }
 
 .ritos-hero {
@@ -2813,6 +2815,10 @@ body.col-resize-active * {
   margin-bottom: 0;
 }
 
+.usuario-form-grid .form-group-full {
+  grid-column: 1 / -1;
+}
+
 .usuario-form-grid .form-group label {
   font-size: 0.85rem;
 }
@@ -2840,9 +2846,73 @@ body.col-resize-active * {
   border-color: var(--accent);
 }
 
+.access-tree {
+  border: 1px solid var(--border);
+  border-radius: 0.8rem;
+  background: #fff;
+  max-height: 340px;
+  overflow: auto;
+  padding: 0.5rem 0.6rem;
+}
+
+.access-tree-root,
+.access-tree-children {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.access-tree-children {
+  margin-left: 1.2rem;
+}
+
+.access-tree-node {
+  margin: 0.2rem 0;
+}
+
+.access-tree-row {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.access-tree-row label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.9rem;
+  color: var(--text);
+}
+
+.access-tree-row input[type="checkbox"] {
+  width: 1rem;
+  height: 1rem;
+  min-width: 1rem;
+  min-height: 1rem;
+}
+
+.access-tree-toggle,
+.access-tree-toggle-spacer {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.access-tree-toggle {
+  border-radius: 0.35rem;
+  border: 1px solid var(--border-strong);
+  padding: 0;
+  line-height: 1;
+  font-weight: 700;
+}
+
+.access-tree-toggle-spacer {
+  display: inline-block;
+}
+
 .form-actions {
   display: flex;
   gap: 0.75rem;
+  flex-wrap: wrap;
 }
 
 .btn-save {

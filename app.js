@@ -18,8 +18,64 @@ const seededDirectoryUsers = [
   { id: 'user-vitor-cavalcante', nome: 'Vitor Cavalcante', email: 'vitorcavalcante@fcaadvogados.com.br', perfil: 'usuario', password: '123*' }
 ];
 
+let userAccessTreeController = null;
+
+function normalizeUserAccessNodeIds(nodeIds) {
+  if (!Array.isArray(nodeIds)) {
+    return [];
+  }
+
+  return Array.from(new Set(nodeIds.map((item) => String(item || '').trim()).filter(Boolean)));
+}
+
+function normalizeUserAccessEntries(entries) {
+  if (!Array.isArray(entries)) {
+    return [];
+  }
+
+  const map = new Map();
+
+  entries.forEach((entry) => {
+    const municipio = String(entry?.municipio || '').trim();
+    const secretaria = String(entry?.secretaria || '').trim();
+    const setor = String(entry?.setor || '').trim();
+    const statuses = Array.isArray(entry?.statuses)
+      ? entry.statuses.map((status) => String(status || '').trim()).filter(Boolean)
+      : [];
+
+    if (!municipio || !secretaria || !setor || !statuses.length) {
+      return;
+    }
+
+    const key = `${municipio.toLowerCase()}::${secretaria.toLowerCase()}::${setor.toLowerCase()}`;
+    const currentStatuses = map.get(key) || [];
+    const nextStatuses = Array.from(new Set([...currentStatuses, ...statuses]));
+    map.set(key, nextStatuses);
+  });
+
+  return Array.from(map.entries()).map(([key, statuses]) => {
+    const [municipioKey, secretariaKey, setorKey] = key.split('::');
+    const rawEntry = entries.find((entry) => {
+      return String(entry?.municipio || '').trim().toLowerCase() === municipioKey
+        && String(entry?.secretaria || '').trim().toLowerCase() === secretariaKey
+        && String(entry?.setor || '').trim().toLowerCase() === setorKey;
+    });
+
+    return {
+      municipio: String(rawEntry?.municipio || '').trim(),
+      secretaria: String(rawEntry?.secretaria || '').trim(),
+      setor: String(rawEntry?.setor || '').trim(),
+      statuses: statuses.sort((a, b) => a.localeCompare(b, 'pt-BR'))
+    };
+  });
+}
+
 function normalizeUser(user) {
   const source = user && typeof user === 'object' ? user : {};
+  const acessosMunicipais = normalizeUserAccessEntries(source.acessosMunicipais);
+  const accessNodeIds = normalizeUserAccessNodeIds(source.accessNodeIds);
+  const legacySetores = normalizeUserSetores(source.setores);
+  const setoresFromAccess = Array.from(new Set(acessosMunicipais.map((entry) => entry.setor)));
   return {
     id: String(source.id || crypto.randomUUID()),
     nome: String(source.nome || '').trim(),
@@ -28,6 +84,9 @@ function normalizeUser(user) {
     phone: String(source.phone || '').trim(),
     password: String(source.password || ''),
     perfil: String(source.perfil || 'usuario').trim(),
+    setores: Array.from(new Set([...legacySetores, ...setoresFromAccess])),
+    acessosMunicipais,
+    accessNodeIds,
     createdAt: String(source.createdAt || new Date().toISOString())
   };
 }
@@ -113,6 +172,7 @@ function buildCurrentUserSession(user) {
     email: normalized.email,
     cpf: normalized.cpf,
     perfil: normalized.perfil,
+    acessosMunicipais: normalized.acessosMunicipais,
     permissions: Array.isArray(user?.permissions) ? user.permissions : []
   };
 }
@@ -1753,6 +1813,290 @@ function getStatusOptionsForModalidade(modalidade) {
   return options.length ? options : catalog;
 }
 
+function buildAccessNodeId(parts) {
+  return parts.map((part) => encodeURIComponent(String(part || '').trim())).join('|');
+}
+
+function buildUserAccessTreeData() {
+  const structure = getMunicipalStructure();
+  const statusCatalog = normalizeStatusCatalog(state.statusCatalog);
+
+  return structure.map((municipio) => {
+    const municipioId = buildAccessNodeId(['m', municipio.nome]);
+    return {
+      id: municipioId,
+      label: municipio.nome,
+      type: 'municipio',
+      meta: { municipio: municipio.nome },
+      children: (municipio.secretarias || []).map((secretaria) => {
+        const secretariaId = buildAccessNodeId(['m', municipio.nome, 's', secretaria.nome]);
+        return {
+          id: secretariaId,
+          label: secretaria.nome,
+          type: 'secretaria',
+          meta: { municipio: municipio.nome, secretaria: secretaria.nome },
+          children: (secretaria.setores || []).map((setor) => {
+            const setorId = buildAccessNodeId(['m', municipio.nome, 's', secretaria.nome, 't', setor]);
+            return {
+              id: setorId,
+              label: setor,
+              type: 'setor',
+              meta: { municipio: municipio.nome, secretaria: secretaria.nome, setor },
+              children: statusCatalog.map((status) => ({
+                id: buildAccessNodeId(['m', municipio.nome, 's', secretaria.nome, 't', setor, 'st', status]),
+                label: status,
+                type: 'status',
+                meta: { municipio: municipio.nome, secretaria: secretaria.nome, setor, status },
+                children: []
+              }))
+            };
+          })
+        };
+      })
+    };
+  });
+}
+
+function buildCheckedNodeIdsFromUserAccess(accessEntries, treeData) {
+  const knownIds = new Set();
+  const walk = (node) => {
+    knownIds.add(node.id);
+    (node.children || []).forEach(walk);
+  };
+  treeData.forEach(walk);
+
+  const checked = new Set();
+  normalizeUserAccessEntries(accessEntries).forEach((entry) => {
+    const municipio = String(entry.municipio || '').trim();
+    const secretaria = String(entry.secretaria || '').trim();
+    const setor = String(entry.setor || '').trim();
+    (entry.statuses || []).forEach((status) => {
+      const nodeId = buildAccessNodeId(['m', municipio, 's', secretaria, 't', setor, 'st', status]);
+      if (knownIds.has(nodeId)) {
+        checked.add(nodeId);
+      }
+    });
+  });
+
+  return Array.from(checked);
+}
+
+function buildUserAccessFromCheckedNodeIds(checkedNodeIds, treeData) {
+  const checked = new Set(normalizeUserAccessNodeIds(checkedNodeIds));
+  const entries = [];
+
+  const walk = (node) => {
+    if (node.type === 'status' && checked.has(node.id)) {
+      entries.push({
+        municipio: node.meta.municipio,
+        secretaria: node.meta.secretaria,
+        setor: node.meta.setor,
+        statuses: [node.meta.status]
+      });
+    }
+    (node.children || []).forEach(walk);
+  };
+  treeData.forEach(walk);
+
+  return normalizeUserAccessEntries(entries);
+}
+
+function createAccessTreeController(rootElement, treeData, initialCheckedIds) {
+  if (!rootElement) {
+    return null;
+  }
+
+  const nodeById = new Map();
+  const parentById = new Map();
+  const childrenById = new Map();
+  const descendantsById = new Map();
+
+  const indexNode = (node, parentId = null) => {
+    nodeById.set(node.id, node);
+    parentById.set(node.id, parentId);
+    const childIds = (node.children || []).map((child) => child.id);
+    childrenById.set(node.id, childIds);
+    (node.children || []).forEach((child) => indexNode(child, node.id));
+  };
+  treeData.forEach((node) => indexNode(node));
+
+  const computeDescendants = (nodeId) => {
+    const childIds = childrenById.get(nodeId) || [];
+    const list = [];
+    childIds.forEach((childId) => {
+      list.push(childId, ...computeDescendants(childId));
+    });
+    descendantsById.set(nodeId, list);
+    return list;
+  };
+
+  treeData.forEach((node) => computeDescendants(node.id));
+
+  const knownIds = new Set(nodeById.keys());
+  const checkedItems = new Set(normalizeUserAccessNodeIds(initialCheckedIds).filter((id) => knownIds.has(id)));
+  const expandedItems = new Set(treeData.map((node) => node.id));
+
+  const buildNodeHtml = (node, depth = 0) => {
+    const childCount = (node.children || []).length;
+    const expanded = expandedItems.has(node.id);
+    const hasChildren = childCount > 0;
+    const childrenHtml = hasChildren
+      ? `<ul class="access-tree-children" data-children-id="${escapeHtml(node.id)}" ${expanded ? '' : 'hidden'}>${node.children.map((child) => buildNodeHtml(child, depth + 1)).join('')}</ul>`
+      : '';
+
+    return `
+      <li class="access-tree-node" data-node-id="${escapeHtml(node.id)}" data-depth="${depth}">
+        <div class="access-tree-row">
+          ${hasChildren
+            ? `<button type="button" class="access-tree-toggle" data-toggle-id="${escapeHtml(node.id)}" aria-expanded="${expanded ? 'true' : 'false'}">${expanded ? '−' : '+'}</button>`
+            : '<span class="access-tree-toggle-spacer"></span>'}
+          <label>
+            <input type="checkbox" data-check-id="${escapeHtml(node.id)}" />
+            <span>${escapeHtml(node.label)}</span>
+          </label>
+        </div>
+        ${childrenHtml}
+      </li>
+    `;
+  };
+
+  rootElement.innerHTML = `<ul class="access-tree-root">${treeData.map((node) => buildNodeHtml(node)).join('')}</ul>`;
+
+  const getCheckbox = (nodeId) => rootElement.querySelector(`[data-check-id="${CSS.escape(nodeId)}"]`);
+  const getToggle = (nodeId) => rootElement.querySelector(`[data-toggle-id="${CSS.escape(nodeId)}"]`);
+  const getChildren = (nodeId) => rootElement.querySelector(`[data-children-id="${CSS.escape(nodeId)}"]`);
+
+  const recomputeParentState = (nodeId) => {
+    let parentId = parentById.get(nodeId);
+    while (parentId) {
+      const childIds = childrenById.get(parentId) || [];
+      const checkedChildren = childIds.filter((id) => checkedItems.has(id)).length;
+
+      if (checkedChildren === childIds.length && childIds.length > 0) {
+        checkedItems.add(parentId);
+      } else {
+        checkedItems.delete(parentId);
+      }
+
+      parentId = parentById.get(parentId);
+    }
+  };
+
+  const syncCheckboxState = (nodeId) => {
+    const checkbox = getCheckbox(nodeId);
+    if (!checkbox) {
+      return;
+    }
+
+    const childIds = childrenById.get(nodeId) || [];
+    const isChecked = checkedItems.has(nodeId);
+    checkbox.checked = isChecked;
+
+    if (!childIds.length) {
+      checkbox.indeterminate = false;
+      return;
+    }
+
+    const checkedChildren = childIds.filter((id) => checkedItems.has(id)).length;
+    checkbox.indeterminate = checkedChildren > 0 && checkedChildren < childIds.length;
+  };
+
+  const syncBranchState = (nodeId) => {
+    const descendants = descendantsById.get(nodeId) || [];
+    descendants.forEach((id) => syncCheckboxState(id));
+    syncCheckboxState(nodeId);
+
+    let parentId = parentById.get(nodeId);
+    while (parentId) {
+      syncCheckboxState(parentId);
+      parentId = parentById.get(parentId);
+    }
+  };
+
+  rootElement.querySelectorAll('[data-check-id]').forEach((checkbox) => {
+    const nodeId = checkbox.getAttribute('data-check-id');
+    if (checkedItems.has(nodeId)) {
+      checkbox.checked = true;
+    }
+  });
+  nodeById.forEach((_, nodeId) => syncCheckboxState(nodeId));
+
+  rootElement.addEventListener('click', (event) => {
+    const toggleButton = event.target.closest('[data-toggle-id]');
+    if (!toggleButton) {
+      return;
+    }
+
+    const nodeId = String(toggleButton.getAttribute('data-toggle-id') || '').trim();
+    if (!nodeId) {
+      return;
+    }
+
+    const children = getChildren(nodeId);
+    if (!children) {
+      return;
+    }
+
+    const isExpanded = expandedItems.has(nodeId);
+    if (isExpanded) {
+      expandedItems.delete(nodeId);
+      children.hidden = true;
+      toggleButton.textContent = '+';
+      toggleButton.setAttribute('aria-expanded', 'false');
+    } else {
+      expandedItems.add(nodeId);
+      children.hidden = false;
+      toggleButton.textContent = '−';
+      toggleButton.setAttribute('aria-expanded', 'true');
+    }
+  });
+
+  rootElement.addEventListener('change', (event) => {
+    const input = event.target.closest('[data-check-id]');
+    if (!input) {
+      return;
+    }
+
+    const nodeId = String(input.getAttribute('data-check-id') || '').trim();
+    if (!nodeId) {
+      return;
+    }
+
+    const shouldCheck = Boolean(input.checked);
+    const impacted = [nodeId, ...(descendantsById.get(nodeId) || [])];
+    impacted.forEach((id) => {
+      if (shouldCheck) {
+        checkedItems.add(id);
+      } else {
+        checkedItems.delete(id);
+      }
+    });
+
+    recomputeParentState(nodeId);
+    syncBranchState(nodeId);
+  });
+
+  return {
+    getCheckedItems() {
+      return Array.from(checkedItems);
+    },
+    destroy() {
+      rootElement.innerHTML = '';
+    }
+  };
+}
+
+function resolveUserAccessFromTree(controller, treeData) {
+  const checkedItems = controller?.getCheckedItems ? controller.getCheckedItems() : [];
+  const acessosMunicipais = buildUserAccessFromCheckedNodeIds(checkedItems, treeData);
+  const setores = Array.from(new Set(acessosMunicipais.map((entry) => entry.setor))).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  return {
+    checkedItems,
+    acessosMunicipais,
+    setores
+  };
+}
+
 function escapeHtml(str) {
   if (!str) return '';
   return String(str)
@@ -1779,13 +2123,70 @@ function normalizeUserSetores(setores) {
     .filter(Boolean);
 }
 
+function getUserSetoresFromAccess(user) {
+  const entries = normalizeUserAccessEntries(user?.acessosMunicipais);
+  return Array.from(new Set(entries.map((entry) => String(entry.setor || '').trim()).filter(Boolean)));
+}
+
 function getUsuariosVinculadosAoSetor(setor) {
   const setorNormalizado = String(setor || '').trim().toLowerCase();
   if (!setorNormalizado) {
     return [];
   }
 
-  return getAllUsers().filter((user) => normalizeUserSetores(user.setores).some((item) => item.toLowerCase() === setorNormalizado));
+  return getAllUsers().filter((user) => {
+    const fromLegacy = normalizeUserSetores(user.setores);
+    const fromAccess = getUserSetoresFromAccess(user);
+    const merged = Array.from(new Set([...fromLegacy, ...fromAccess]));
+    return merged.some((item) => item.toLowerCase() === setorNormalizado);
+  });
+}
+
+function findResponsibleAssignmentByDemandStatus(demand, targetStatus) {
+  const municipio = String(demand?.municipio || '').trim().toLowerCase();
+  const secretaria = String(demand?.secretaria || '').trim().toLowerCase();
+  const setorAtual = String(demand?.setorResponsavel || demand?.setorDestino || '').trim().toLowerCase();
+  const status = String(targetStatus || '').trim().toLowerCase();
+
+  if (!municipio || !secretaria || !status) {
+    return null;
+  }
+
+  const candidates = [];
+
+  getAllUsers().forEach((user) => {
+    const accessEntries = normalizeUserAccessEntries(user.acessosMunicipais);
+    accessEntries.forEach((entry) => {
+      const entryMunicipio = String(entry.municipio || '').trim().toLowerCase();
+      const entrySecretaria = String(entry.secretaria || '').trim().toLowerCase();
+      const entrySetor = String(entry.setor || '').trim();
+      const hasStatus = (entry.statuses || []).some((item) => String(item || '').trim().toLowerCase() === status);
+
+      if (!hasStatus || entryMunicipio !== municipio || entrySecretaria !== secretaria || !entrySetor) {
+        return;
+      }
+
+      const score = entrySetor.toLowerCase() === setorAtual ? 2 : 1;
+      candidates.push({
+        nome: user.nome,
+        setor: entrySetor,
+        score
+      });
+    });
+  });
+
+  if (!candidates.length) {
+    return null;
+  }
+
+  candidates.sort((a, b) => {
+    if (b.score !== a.score) {
+      return b.score - a.score;
+    }
+    return String(a.nome || '').localeCompare(String(b.nome || ''), 'pt-BR');
+  });
+
+  return candidates[0];
 }
 
 function getNextNumeroOrdemByModalidade(modalidade, currentDemandId = null) {
@@ -2783,6 +3184,12 @@ async function renderComunicacaoModule(container) {
 function renderUsuariosModule(container) {
   const users = getAllUsers();
   const isAdmin = currentUser?.perfil === 'administrador';
+  const accessTreeData = buildUserAccessTreeData();
+
+  if (userAccessTreeController?.destroy) {
+    userAccessTreeController.destroy();
+    userAccessTreeController = null;
+  }
 
   let editFormHTML = '';
   if (editingUserId) {
@@ -2820,9 +3227,9 @@ function renderUsuariosModule(container) {
                 <option value="visualizador" ${user.perfil === 'visualizador' ? 'selected' : ''}>Visualizador</option>
               </select>
             </div>
-            <div class="form-group">
-              <label>Setores vinculados <small>(separados por vírgula)</small></label>
-              <input id="editSetores" type="text" value="${escapeHtml(normalizeUserSetores(user.setores).join(', '))}" placeholder="Ex.: Setor de Compras, Setor Financeiro" />
+            <div class="form-group form-group-full">
+              <label>Vínculos hierárquicos <small>(município > secretaria > setor > status)</small></label>
+              <div id="editUserAccessTree" class="access-tree"></div>
             </div>
           </div>
           <div class="form-actions">
@@ -2867,9 +3274,9 @@ function renderUsuariosModule(container) {
               <option value="visualizador">Visualizador</option>
             </select>
           </div>
-          <div class="form-group">
-            <label>Setores vinculados <small>(separados por vírgula)</small></label>
-            <input id="addSetores" type="text" placeholder="Ex.: Setor de Compras, Setor Financeiro" />
+          <div class="form-group form-group-full">
+            <label>Vínculos hierárquicos <small>(município > secretaria > setor > status)</small></label>
+            <div id="addUserAccessTree" class="access-tree"></div>
           </div>
         </div>
         <div class="form-actions">
@@ -2901,20 +3308,26 @@ function renderUsuariosModule(container) {
               <th>E-mail</th>
               <th>CPF</th>
               <th>Telefone</th>
-              <th>Setores</th>
+              <th>Vínculos</th>
               <th>Perfil</th>
               ${isAdmin ? '<th>Ações</th>' : ''}
             </tr>
           </thead>
           <tbody>
             ${users.map(function(user) {
+              const acessos = normalizeUserAccessEntries(user.acessosMunicipais);
+              const setores = Array.from(new Set(acessos.map((entry) => entry.setor)));
+              const statuses = Array.from(new Set(acessos.flatMap((entry) => entry.statuses || [])));
+              const vinculoResumo = acessos.length
+                ? `${setores.length} setor(es) • ${statuses.length} status`
+                : (normalizeUserSetores(user.setores).join(', ') || '-');
               return `
               <tr>
                 <td>${escapeHtml(user.nome)}</td>
                 <td>${escapeHtml(user.email)}</td>
                 <td>${escapeHtml(user.cpf || '-')}</td>
                 <td>${escapeHtml(user.phone || '-')}</td>
-                <td>${escapeHtml(normalizeUserSetores(user.setores).join(', ') || '-')}</td>
+                <td>${escapeHtml(vinculoResumo)}</td>
                 <td><span class="perfil-badge perfil-${user.perfil || 'usuario'}">${getPerfilLabel(user.perfil)}</span></td>
                 ${isAdmin ? `<td class="actions-cell">
                   <button class="btn-table-edit" data-user-id="${user.id}" type="button">Editar</button>
@@ -2927,6 +3340,15 @@ function renderUsuariosModule(container) {
       </div>
     </section>
   `;
+
+  const editingUser = editingUserId ? users.find((item) => item.id === editingUserId) : null;
+  if (editingUser) {
+    const initialFromAccess = buildCheckedNodeIdsFromUserAccess(editingUser.acessosMunicipais, accessTreeData);
+    const initialChecked = initialFromAccess.length ? initialFromAccess : normalizeUserAccessNodeIds(editingUser.accessNodeIds);
+    userAccessTreeController = createAccessTreeController(document.getElementById('editUserAccessTree'), accessTreeData, initialChecked);
+  } else if (showAddUserForm) {
+    userAccessTreeController = createAccessTreeController(document.getElementById('addUserAccessTree'), accessTreeData, []);
+  }
 
   const addBtn = document.getElementById('addUserBtn');
   if (addBtn) {
@@ -2954,7 +3376,7 @@ function renderUsuariosModule(container) {
       const phone = document.getElementById('addPhone').value.trim();
       const password = document.getElementById('addPassword').value;
       const perfil = document.getElementById('addPerfil').value;
-      const setores = normalizeUserSetores(document.getElementById('addSetores').value);
+      const accessPayload = resolveUserAccessFromTree(userAccessTreeController, accessTreeData);
 
       if (!nome || !email || !password) {
         alert('Nome, e-mail e senha são obrigatórios.');
@@ -2973,7 +3395,9 @@ function renderUsuariosModule(container) {
         cpf: cpf || '',
         email,
         phone: phone || '',
-        setores,
+        setores: accessPayload.setores,
+        acessosMunicipais: accessPayload.acessosMunicipais,
+        accessNodeIds: accessPayload.checkedItems,
         password,
         perfil,
         createdAt: new Date().toISOString()
@@ -3002,7 +3426,7 @@ function renderUsuariosModule(container) {
       const phone = document.getElementById('editPhone').value.trim();
       const password = document.getElementById('editPassword').value;
       const perfil = document.getElementById('editPerfil').value;
-      const setores = normalizeUserSetores(document.getElementById('editSetores').value);
+      const accessPayload = resolveUserAccessFromTree(userAccessTreeController, accessTreeData);
 
       if (!nome || !email) {
         alert('Nome e e-mail são obrigatórios.');
@@ -3018,7 +3442,16 @@ function renderUsuariosModule(container) {
         return;
       }
 
-      allUsers[idx] = Object.assign({}, allUsers[idx], { nome, email, cpf: cpf || '', phone: phone || '', perfil, setores });
+      allUsers[idx] = Object.assign({}, allUsers[idx], {
+        nome,
+        email,
+        cpf: cpf || '',
+        phone: phone || '',
+        perfil,
+        setores: accessPayload.setores,
+        acessosMunicipais: accessPayload.acessosMunicipais,
+        accessNodeIds: accessPayload.checkedItems
+      });
       if (password) allUsers[idx].password = password;
       saveAllUsers(allUsers);
 
@@ -3565,6 +3998,97 @@ function toDateInputValue(dateObj) {
   return `${year}-${month}-${day}`;
 }
 
+function getNextStatusForDemand(modalidade, currentStatus) {
+  const options = getStatusOptionsForModalidade(modalidade);
+  if (!options.length) {
+    return null;
+  }
+
+  const current = String(currentStatus || '').trim();
+  const currentUpper = current.toUpperCase();
+  const currentIndex = options.findIndex((status) => String(status || '').trim().toUpperCase() === currentUpper);
+
+  if (currentIndex >= 0) {
+    return options[currentIndex + 1] || null;
+  }
+
+  if (currentUpper === 'ETP') {
+    const afterEtp = options.find((status) => {
+      const normalized = String(status || '').trim().toUpperCase();
+      return normalized !== 'DFD' && normalized !== 'ETP';
+    });
+    return afterEtp || options[0] || null;
+  }
+
+  return options[0] || null;
+}
+
+function tramitarLicitacaoDemandFromModal(demandId) {
+  const demandas = Array.isArray(state.licitacoesDemandas) ? state.licitacoesDemandas : [];
+  const index = demandas.findIndex((item) => item.id === demandId);
+  if (index === -1) {
+    return;
+  }
+
+  const demand = demandas[index];
+  const isAdmin = currentUser?.perfil === 'administrador';
+  const isResponsible = String(currentUser?.nome || '').trim().toLowerCase() === String(demand?.responsavel || '').trim().toLowerCase();
+  if (!isAdmin && !isResponsible) {
+    window.alert('Somente o responsável atual ou o administrador pode tramitar este processo.');
+    return;
+  }
+
+  const modalidadeFromForm = String(document.getElementById('editDemandModalidade')?.value || '').trim();
+  const modalidadeAtual = modalidadeFromForm || String(demand.modalidade || '').trim() || '-';
+
+  if (String(demand.status || '').trim().toUpperCase() === 'ETP' && (!modalidadeAtual || modalidadeAtual === '-')) {
+    window.alert('Defina a modalidade no ETP antes de tramitar.');
+    return;
+  }
+
+  const nextStatus = getNextStatusForDemand(modalidadeAtual, demand.status);
+  if (!nextStatus) {
+    window.alert('Este processo já está no último status da sequência da modalidade.');
+    return;
+  }
+
+  const assignment = findResponsibleAssignmentByDemandStatus(demand, nextStatus);
+  const fallbackSetor = String(demand.setorResponsavel || demand.setorDestino || '-').trim() || '-';
+  const fallbackUsers = getUsuariosVinculadosAoSetor(fallbackSetor);
+  const nextSetorResponsavel = assignment?.setor || fallbackSetor;
+  const nextResponsavel = assignment?.nome || fallbackUsers[0]?.nome || String(demand.responsavel || '-').trim() || '-';
+  const previousResponsavel = String(demand.responsavel || '').trim();
+  const numeroOrdem = modalidadeAtual && modalidadeAtual !== '-' ? getNextNumeroOrdemByModalidade(modalidadeAtual, demand.id) : '-';
+
+  demandas[index] = {
+    ...demand,
+    modalidade: modalidadeAtual,
+    numeroOrdem,
+    status: nextStatus,
+    statusUpdatedAt: new Date().toISOString(),
+    setorResponsavel: nextSetorResponsavel,
+    responsavel: nextResponsavel,
+    responsavelDesignadoAt: new Date().toISOString()
+  };
+
+  state.licitacoesDemandas = demandas;
+  persistState();
+
+  if (nextResponsavel !== '-') {
+    pushDemandMentionAlert(demandas[index], nextResponsavel);
+  }
+
+  closeLicitacaoDetailsModal();
+
+  if (activeModuleKey === 'licitacoes') {
+    renderModuleContent('licitacoes');
+  }
+
+  if (previousResponsavel && previousResponsavel !== nextResponsavel && String(currentUser?.nome || '').trim().toLowerCase() === previousResponsavel.toLowerCase()) {
+    window.alert(`Processo tramitado para ${nextStatus} e atribuído a ${nextResponsavel}.`);
+  }
+}
+
 function saveLicitacaoDemandFromModal(demandId) {
   if (currentUser?.perfil !== 'administrador') {
     return;
@@ -3728,8 +4252,12 @@ function openLicitacaoDetailsModal(demand) {
   const prioridade = demand.prioridade || 'Média';
   const prioridadeClass = getPrioridadeClass(prioridade);
   const isAdmin = currentUser?.perfil === 'administrador';
+  const isResponsible = String(currentUser?.nome || '').trim().toLowerCase() === String(demand?.responsavel || '').trim().toLowerCase();
+  const canTramitar = isAdmin || isResponsible;
+  const canEditFlow = isAdmin || isResponsible;
   const createdAtInputValue = toDateInputValue(createdDate);
   const readonlyAttr = isAdmin ? '' : 'disabled';
+  const flowReadonlyAttr = canEditFlow ? '' : 'disabled';
   const setorResponsavel = demand.setorResponsavel || demand.setorDestino || defaultSetoresDestino[0] || '-';
   const usuariosBySetor = getUsuariosVinculadosAoSetor(setorResponsavel);
   const responsavelOptions = usuariosBySetor.length ? usuariosBySetor : getAllUsers();
@@ -3787,7 +4315,8 @@ function openLicitacaoDetailsModal(demand) {
         </select>
       </div>
       <div class="detail-cell"><span>Modalidade</span>
-        <select id="editDemandModalidade" ${readonlyAttr}>
+        <select id="editDemandModalidade" ${flowReadonlyAttr}>
+          <option value="-" ${modalidadeAtual === '-' ? 'selected' : ''}>Selecionar no ETP</option>
           ${modalidades.map((modalidade) => `<option value="${escapeHtml(modalidade)}" ${modalidade === modalidadeAtual ? 'selected' : ''}>${escapeHtml(modalidade)}</option>`).join('')}
         </select>
       </div>
@@ -3801,17 +4330,28 @@ function openLicitacaoDetailsModal(demand) {
       <p><strong>Criado em:</strong> ${escapeHtml(createdAtText)}</p>
       <p><strong>Aberto há:</strong> ${escapeHtml(openedElapsed)}</p>
     </div>
-    ${isAdmin ? '<div class="licitacao-details-actions"><button id="saveDemandChangesBtn" type="button">Salvar alterações</button></div>' : ''}
+    <div class="licitacao-details-actions">
+      ${canTramitar ? '<button id="tramitarDemandBtn" type="button">Tramitar</button>' : ''}
+      ${isAdmin ? '<button id="saveDemandChangesBtn" type="button">Salvar alterações</button>' : ''}
+    </div>
   `;
+
+  if (canEditFlow || isAdmin) {
+    bindStatusAndOrderByModalidadePicker(demand.id);
+  }
 
   if (isAdmin) {
     bindPriorityTagPicker();
     bindResponsavelBySetorPicker();
-    bindStatusAndOrderByModalidadePicker(demand.id);
     const saveBtn = document.getElementById('saveDemandChangesBtn');
     if (saveBtn) {
       saveBtn.addEventListener('click', () => saveLicitacaoDemandFromModal(demand.id));
     }
+  }
+
+  const tramitarBtn = document.getElementById('tramitarDemandBtn');
+  if (tramitarBtn) {
+    tramitarBtn.addEventListener('click', () => tramitarLicitacaoDemandFromModal(demand.id));
   }
 
   modal.classList.add('active');
@@ -3858,12 +4398,13 @@ function submitProtocolForm(event) {
   }
 
   const nup = buildNupNumber();
+  const statusInicial = normalizeStatusCatalog(state.statusCatalog).includes('ETP') ? 'ETP' : (normalizeStatusCatalog(state.statusCatalog)[0] || 'DFD');
+  const assignment = findResponsibleAssignmentByDemandStatus({ municipio, secretaria: orgao, setorResponsavel: setorDestino, setorDestino }, statusInicial);
   const usuariosSetor = getUsuariosVinculadosAoSetor(setorDestino);
-  const responsavelDefault = usuariosSetor[0]?.nome || '-';
-  const modalidades = normalizeModalidades(state.modalidades);
-  const modalidadeInicial = modalidades[0] || defaultModalidades[0];
-  const numeroOrdemInicial = getNextNumeroOrdemByModalidade(modalidadeInicial);
-  const statusInicial = getStatusOptionsForModalidade(modalidadeInicial)[0] || 'DFD';
+  const responsavelDefault = assignment?.nome || usuariosSetor[0]?.nome || '-';
+  const setorResponsavelInicial = assignment?.setor || setorDestino;
+  const modalidadeInicial = '-';
+  const numeroOrdemInicial = '-';
   const demand = {
     id: crypto.randomUUID(),
     processoNumero: nup.numero,
@@ -3872,7 +4413,7 @@ function submitProtocolForm(event) {
     objeto,
     documentoInicialNome: documento?.name || '-',
     setorDestino,
-    setorResponsavel: setorDestino,
+    setorResponsavel: setorResponsavelInicial,
     responsavel: responsavelDefault,
     responsavelDesignadoAt: new Date().toISOString(),
     status: statusInicial,
@@ -3896,6 +4437,9 @@ function submitProtocolForm(event) {
   state.protocoloSequencial = nup.sequencial + 1;
 
   persistState();
+  if (responsavelDefault !== '-') {
+    pushDemandMentionAlert(demand, responsavelDefault);
+  }
   closeProtocolModal();
   openProtocolSummaryModal(demand);
 
