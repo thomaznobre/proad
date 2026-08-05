@@ -2226,36 +2226,43 @@ body.col-resize-active * {
 
 .licitacao-details-shell {
   display: flex;
-  align-items: flex-start;
-  width: fit-content;
-  max-width: calc(100vw - 4rem);
-}
-
-.licitacao-details-main {
-  flex: 0 0 min(760px, calc(100vw - 8rem));
-  max-width: min(760px, calc(100vw - 8rem));
-  width: min(760px, calc(100vw - 8rem));
-  max-height: min(82vh, 800px);
+  align-items: stretch;
   background: #ffffff;
   border: 1px solid var(--border);
   border-radius: 1rem;
   padding: 1.2rem;
+  gap: 0;
+  width: min(760px, calc(100vw - 4rem));
+  transition: width 0.32s ease;
+}
+
+.licitacao-details-shell.is-expanded {
+  width: min(1380px, calc(100vw - 2rem));
+}
+
+.licitacao-details-main {
+  flex: 0 0 min(680px, calc(100vw - 10rem));
+  max-width: min(680px, calc(100vw - 10rem));
+  width: min(680px, calc(100vw - 10rem));
+  max-height: min(80vh, 780px);
   overflow-y: auto;
 }
 
 .licitacao-history-toggle {
   align-self: stretch;
-  width: 30px;
-  border-radius: 0.8rem;
-  margin: 0 0.55rem;
+  flex-shrink: 0;
+  width: 28px;
+  border-radius: 0.6rem;
+  margin: 0 0.5rem;
   border: 1px solid var(--border);
   background: #f7fbff;
   color: var(--muted);
-  font-size: 1.1rem;
+  font-size: 0.85rem;
   font-weight: 700;
   padding: 0;
   display: grid;
   place-items: center;
+  cursor: pointer;
 }
 
 .licitacao-history-toggle:hover {
@@ -2264,24 +2271,21 @@ body.col-resize-active * {
 }
 
 .licitacao-history-panel {
+  flex-shrink: 0;
   width: 0;
-  min-width: 0;
   opacity: 0;
   pointer-events: none;
   overflow: hidden;
   border: 1px solid transparent;
-  border-radius: 1rem;
+  border-radius: 0.75rem;
   background: #f8fbff;
-  transition: width 0.28s ease, min-width 0.28s ease, opacity 0.22s ease, padding 0.28s ease, border-color 0.28s ease;
+  transition: width 0.32s ease, opacity 0.24s ease, padding 0.32s ease, border-color 0.32s ease;
   padding: 0;
-  display: flex;
-  flex-direction: column;
 }
 
 .licitacao-details-shell.is-expanded .licitacao-history-panel {
-  width: min(400px, calc(100vw - 8rem));
-  min-width: min(340px, calc(100vw - 8rem));
-  max-height: min(82vh, 800px);
+  width: min(580px, calc(100vw - 10rem));
+  max-height: min(80vh, 780px);
   opacity: 1;
   pointer-events: auto;
   border-color: var(--border);
@@ -2305,8 +2309,6 @@ body.col-resize-active * {
   display: flex;
   flex-direction: column;
   gap: 0.7rem;
-  max-height: min(62vh, 640px);
-  overflow: auto;
   padding-right: 0.2rem;
 }
 
@@ -2382,10 +2384,11 @@ body.col-resize-active * {
     overflow-y: auto;
   }
 
-  .licitacao-details-shell {
+  .licitacao-details-shell,
+  .licitacao-details-shell.is-expanded {
     flex-direction: column;
     width: 100%;
-    max-width: 100%;
+    transition: none;
   }
 
   .licitacao-details-main {
@@ -2402,22 +2405,14 @@ body.col-resize-active * {
     margin: 0.6rem 0;
   }
 
-  .licitacao-history-panel,
+  .licitacao-history-panel {
+    width: 100%;
+    max-height: 0;
+    overflow: hidden;
+  }
+
   .licitacao-details-shell.is-expanded .licitacao-history-panel {
     width: 100%;
-    min-width: 0;
-    max-height: none;
-  }
-
-  .licitacao-details-shell:not(.is-expanded) .licitacao-history-panel {
-    max-height: 0;
-    opacity: 0;
-    padding-top: 0;
-    padding-bottom: 0;
-    border-width: 0;
-  }
-
-  .licitacao-details-shell.is-expanded .licitacao-history-panel {
     max-height: 60vh;
     overflow-y: auto;
   }

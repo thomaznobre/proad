@@ -4859,6 +4859,15 @@ function saveLicitacaoDemandFromModal(demandId) {
   const statusOptions = getStatusOptionsForModalidade(nextModalidade);
   const normalizedStatus = statusOptions.includes(nextStatus) ? nextStatus : (statusOptions[0] || 'DFD');
 
+  // impede salto de status para frente (mais de um passo)
+  const currentStatusIdx = statusOptions.indexOf(String(current.status || 'DFD'));
+  const nextStatusIdx = statusOptions.indexOf(normalizedStatus);
+  if (currentStatusIdx >= 0 && nextStatusIdx > currentStatusIdx + 1) {
+    const proximoPermitido = statusOptions[currentStatusIdx + 1];
+    window.alert(`Não é possível pular status. O próximo passo deve ser “${proximoPermitido}”.`);
+    return;
+  }
+
   const updated = {
     ...current,
     processoNumero: String(document.getElementById('editDemandProcessoNumero')?.value || '').trim() || current.processoNumero,
@@ -5077,7 +5086,6 @@ function openLicitacaoDetailsModal(demand) {
             <span>${escapeHtml(formatDateTimePtBr(item.dataHoraIso))}</span>
           </header>
           <p class="tramite-item-responsavel">Responsável: ${escapeHtml(item.responsavel || '-')}</p>
-          <p class="tramite-item-descricao">${escapeHtml(item.descricao || '-')}</p>
           <div class="tramite-item-docs">
             ${docs.length
               ? docs.map((doc) => {
