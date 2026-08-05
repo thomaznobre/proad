@@ -12,6 +12,8 @@
   --success: #1f8b57;
   --border: #c9d7e8;
   --border-strong: #8fa8c7;
+  /* largura de cada painel do drawer de licitações — edite aqui para ajustar */
+  --licit-panel-w: 540px;
   font-family: Inter, "Segoe UI", Roboto, sans-serif;
 }
 
@@ -2230,18 +2232,18 @@ body.col-resize-active * {
   display: flex;
   align-items: stretch;
   /* shell transparente: a caixa branca é o .modal-content */
-  width: min(580px, calc(100vw - 4rem));
+  width: calc(var(--licit-panel-w) + 2.4rem);
   transition: width 0.32s ease;
   gap: 0;
 }
 
 .licitacao-details-shell.is-expanded {
-  width: min(1240px, calc(100vw - 4rem));
+  width: calc(var(--licit-panel-w) * 2 + 2.4rem + 44px);
 }
 
 .licitacao-details-main {
-  flex: 0 0 min(540px, calc(50vw - 5rem));
-  width: min(540px, calc(50vw - 5rem));
+  flex: 0 0 var(--licit-panel-w);
+  width: var(--licit-panel-w);
   max-height: min(80vh, 760px);
   overflow-y: auto;
 }
@@ -2283,7 +2285,7 @@ body.col-resize-active * {
 
 .licitacao-details-shell.is-expanded .licitacao-history-panel {
   /* mesma largura que o painel de detalhes */
-  width: min(540px, calc(50vw - 5rem));
+  width: var(--licit-panel-w);
   max-height: min(80vh, 760px);
   opacity: 1;
   pointer-events: auto;
