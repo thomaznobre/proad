@@ -130,12 +130,12 @@
       "perfil": "administrador",
       "setores": [],
       "isOnline": true,
-      "lastSeenAt": "2026-08-04T19:12:14.998Z"
+      "lastSeenAt": "2026-08-05T04:46:30.163Z"
     }
   ],
   "externalSync": {
     "seenMessageIds": [],
-    "lastRunAt": "2026-08-04T19:19:51.729Z",
+    "lastRunAt": "2026-08-05T04:50:12.092Z",
     "lastError": "Failed to establish connection in required time",
     "importedCount": 0,
     "configured": true

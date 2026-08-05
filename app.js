@@ -1113,12 +1113,13 @@ const municipios = [
 
 const defaultMunicipalStructure = buildDefaultMunicipalStructure();
 const defaultPainelLayout = {
-  order: ['panel-prioridades', 'panel-urgentes', 'panel-responsaveis', 'panel-treemap'],
+  order: ['panel-prioridades', 'panel-urgentes', 'panel-responsaveis', 'panel-treemap', 'panel-vigencias'],
   spans: {
     'panel-prioridades': 6,
     'panel-urgentes': 6,
     'panel-responsaveis': 6,
-    'panel-treemap': 6
+    'panel-treemap': 6,
+    'panel-vigencias': 6
   }
 };
 
@@ -1131,6 +1132,7 @@ let activeModuleKey = 'painel';
 let selectedSupplierId = fornecedoresData[0]?.id || null;
 let selectedContratoId = null;
 let creatingContratoRecord = false;
+let editingContratoRecord = false;
 let selectedCorporateEmailId = null;
 let selectedChatRoomId = null;
 let selectedChatMemberIds = new Set();
@@ -1282,8 +1284,166 @@ function getMyResponsibleDemandas(demandas) {
   return demandas.filter((item) => String(item.responsavel || '').trim().toLowerCase() === currentName);
 }
 
+function getPainelVigenciaInstrumentos(limit = 10) {
+  const records = getContratoArpRecords();
+  const rows = records
+    .map((record) => {
+      const family = getContratoFamilyRecords(record, records);
+      const remainingDays = getVinculoRemainingDays(record, family);
+      if (remainingDays === null || remainingDays > 60) {
+        return null;
+      }
+
+      return {
+        id: String(record.id || ''),
+        instrumento: `${record.tipo} ${record.numero || '-'}`.trim(),
+        empresa: String(record.empresaNome || '-').trim() || '-',
+        processo: String(record.processoOrigem || record.processoNumero || '-').trim() || '-',
+        dataTermino: getContratoEffectiveDataTermino(record, family) || record.dataTermino,
+        remainingDays,
+        statusClass: getVinculoStatusClass(record, family),
+        statusLabel: getVinculoStatusLabel(record, family)
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.remainingDays - b.remainingDays || a.instrumento.localeCompare(b.instrumento, 'pt-BR'));
+
+  return rows.slice(0, limit);
+}
+
 function formatCurrencyBR(value) {
-  return `R$ ${Number(value || 0).toLocaleString('pt-BR')}`;
+  return `R$ ${Number(value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function normalizeCurrencyBRValue(value) {
+  const raw = String(value || '').trim();
+  if (!raw) {
+    return '';
+  }
+
+  const parsed = getDemandValueNumber(raw);
+  if (!Number.isFinite(parsed)) {
+    return '';
+  }
+
+  return formatCurrencyBR(parsed);
+}
+
+function findContratoRecordByNumero(numero, records = getContratoArpRecords()) {
+  const target = String(numero || '').trim();
+  if (!target) {
+    return null;
+  }
+
+  return (Array.isArray(records) ? records : []).find((item) => {
+    const identifiers = [item?.numero, item?.processoOrigem, item?.processoNumero]
+      .map((value) => String(value || '').trim())
+      .filter(Boolean);
+    return identifiers.includes(target);
+  }) || null;
+}
+
+function getContratoIdentifiers(record) {
+  return [record?.numero, record?.processoOrigem, record?.processoNumero]
+    .map((value) => String(value || '').trim())
+    .filter(Boolean);
+}
+
+function getContratoRootNumero(record, records = getContratoArpRecords()) {
+  const list = Array.isArray(records) ? records : [];
+  const currentRecord = findContratoRecordByNumero(record?.numero || record?.processoOrigem || record?.processoNumero, list) || record;
+  let currentNumero = String(currentRecord?.numero || '').trim();
+  if (!currentNumero) {
+    return '';
+  }
+
+  const visited = new Set([currentNumero]);
+  while (true) {
+    const current = findContratoRecordByNumero(currentNumero, list);
+    const parentNumero = String(current?.parentId || '').trim();
+    if (!parentNumero || visited.has(parentNumero)) {
+      return currentNumero;
+    }
+
+    visited.add(parentNumero);
+    currentNumero = parentNumero;
+  }
+}
+
+function getContratoFamilyRecords(record, records = getContratoArpRecords()) {
+  const list = Array.isArray(records) ? records : [];
+  const rootNumero = getContratoRootNumero(record, list) || String(record?.numero || '').trim();
+  if (!rootNumero) {
+    return record ? [record] : [];
+  }
+
+  const family = [];
+  const visited = new Set();
+  const pending = [rootNumero];
+
+  while (pending.length) {
+    const currentNumero = pending.shift();
+    if (!currentNumero || visited.has(currentNumero)) {
+      continue;
+    }
+
+    visited.add(currentNumero);
+    const currentRecord = findContratoRecordByNumero(currentNumero, list);
+    if (!currentRecord) {
+      continue;
+    }
+
+    family.push(currentRecord);
+    list.forEach((item) => {
+      const parentValue = String(item?.parentId || '').trim();
+      const childIdentifiers = getContratoIdentifiers(item);
+      if (parentValue && (parentValue === currentNumero || childIdentifiers.includes(currentNumero)) && !visited.has(String(item.numero || '').trim())) {
+        pending.push(String(item.numero || '').trim());
+      }
+    });
+  }
+
+  return family;
+}
+
+function getContratoEffectiveDataTermino(record, records = getContratoArpRecords()) {
+  const family = getContratoFamilyRecords(record, records);
+  const dates = family
+    .map((item) => parseDate(item?.dataTermino))
+    .filter((date) => date instanceof Date && !Number.isNaN(date.getTime()));
+
+  if (!dates.length) {
+    return parseDate(record?.dataTermino);
+  }
+
+  return new Date(Math.max(...dates.map((date) => date.getTime())));
+}
+
+function isTermoAditivoRecord(record) {
+  return String(record?.tipo || '').trim().toLowerCase() === 'aditivo';
+}
+
+function getTermoAditivoOrdinal(rootRecord, records = getContratoArpRecords(), currentRecordId = null) {
+  const family = getContratoFamilyRecords(rootRecord, records);
+  const aditivos = family.filter((item) => isTermoAditivoRecord(item) && String(item.id || '') !== String(currentRecordId || ''));
+  return aditivos.length + 1;
+}
+
+function formatTermoAditivoNumero(rootRecord, records = getContratoArpRecords(), currentRecordId = null) {
+  const ordinal = getTermoAditivoOrdinal(rootRecord, records, currentRecordId);
+  return `${ordinal}º TERMO ADITIVO`;
+}
+
+function recordMatchesContratoSearch(record, termo, records = getContratoArpRecords()) {
+  const query = String(termo || '').trim().toLowerCase();
+  if (!query) {
+    return true;
+  }
+
+  const family = getContratoFamilyRecords(record, records);
+  const searchableItems = [record, ...family];
+  return searchableItems.some((item) => [item.tipo, item.numero, item.objeto, item.processoOrigem, item.processoNumero, item.empresaNome, item.empresaCnpj]
+    .some((value) => String(value || '').toLowerCase().includes(query)));
 }
 
 function getPanelCardSpanClass(cardKey) {
@@ -3762,9 +3922,11 @@ function bindProtocolModalEvents() {
   const closeProtocolBtn = document.getElementById('closeProtocolModal');
   const closeSummaryBtn = document.getElementById('closeProtocolSummaryModal');
   const closeLicitacaoDetailsBtn = document.getElementById('closeLicitacaoDetailsModal');
+  const closeDocumentPreviewBtn = document.getElementById('closeDocumentPreviewModal');
   const protocolModal = document.getElementById('protocolModal');
   const summaryModal = document.getElementById('protocolSummaryModal');
   const licitacaoDetailsModal = document.getElementById('licitacaoDetailsModal');
+  const documentPreviewModal = document.getElementById('documentPreviewModal');
 
   if (closeProtocolBtn && !closeProtocolBtn.dataset.bound) {
     closeProtocolBtn.addEventListener('click', closeProtocolModal);
@@ -3779,6 +3941,11 @@ function bindProtocolModalEvents() {
   if (closeLicitacaoDetailsBtn && !closeLicitacaoDetailsBtn.dataset.bound) {
     closeLicitacaoDetailsBtn.addEventListener('click', closeLicitacaoDetailsModal);
     closeLicitacaoDetailsBtn.dataset.bound = '1';
+  }
+
+  if (closeDocumentPreviewBtn && !closeDocumentPreviewBtn.dataset.bound) {
+    closeDocumentPreviewBtn.addEventListener('click', closeDocumentPreviewModal);
+    closeDocumentPreviewBtn.dataset.bound = '1';
   }
 
   if (protocolModal && !protocolModal.dataset.bound) {
@@ -3806,6 +3973,15 @@ function bindProtocolModalEvents() {
       }
     });
     licitacaoDetailsModal.dataset.bound = '1';
+  }
+
+  if (documentPreviewModal && !documentPreviewModal.dataset.bound) {
+    documentPreviewModal.addEventListener('click', (event) => {
+      if (event.target === documentPreviewModal) {
+        closeDocumentPreviewModal();
+      }
+    });
+    documentPreviewModal.dataset.bound = '1';
   }
 
   if (municipalitySelect && !municipalitySelect.dataset.bound) {
@@ -3957,6 +4133,302 @@ function closeLicitacaoDetailsModal() {
   if (modal) {
     modal.classList.remove('active');
   }
+}
+
+function closeDocumentPreviewModal() {
+  const modal = document.getElementById('documentPreviewModal');
+  const frame = document.getElementById('documentPreviewFrame');
+  const openNew = document.getElementById('documentPreviewOpenNew');
+  if (frame) {
+    frame.removeAttribute('src');
+  }
+  if (openNew) {
+    openNew.setAttribute('href', '#');
+  }
+  if (modal) {
+    modal.classList.remove('active');
+  }
+}
+
+function openDocumentPreviewModal(sourceUrl) {
+  const url = String(sourceUrl || '').trim();
+  if (!url) {
+    return;
+  }
+
+  const modal = document.getElementById('documentPreviewModal');
+  const frame = document.getElementById('documentPreviewFrame');
+  const openNew = document.getElementById('documentPreviewOpenNew');
+  if (!modal || !frame || !openNew) {
+    window.open(url, '_blank', 'noopener,noreferrer');
+    return;
+  }
+
+  frame.setAttribute('src', url);
+  openNew.setAttribute('href', url);
+  modal.classList.add('active');
+}
+
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    if (!file) {
+      resolve('');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ''));
+    reader.onerror = () => reject(new Error('Falha ao ler arquivo.'));
+    reader.readAsDataURL(file);
+  });
+}
+
+function readFileAsText(file) {
+  return new Promise((resolve, reject) => {
+    if (!file) {
+      resolve('');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ''));
+    reader.onerror = () => reject(new Error('Falha ao ler arquivo texto.'));
+    reader.readAsText(file);
+  });
+}
+
+function parseCsvRows(csvText) {
+  const text = String(csvText || '').replace(/^\uFEFF/, '');
+  const rows = [];
+  let current = '';
+  let row = [];
+  let inQuotes = false;
+
+  for (let i = 0; i < text.length; i += 1) {
+    const char = text[i];
+    const next = text[i + 1];
+
+    if (char === '"') {
+      if (inQuotes && next === '"') {
+        current += '"';
+        i += 1;
+      } else {
+        inQuotes = !inQuotes;
+      }
+      continue;
+    }
+
+    if (char === ',' && !inQuotes) {
+      row.push(current);
+      current = '';
+      continue;
+    }
+
+    if ((char === '\n' || char === '\r') && !inQuotes) {
+      if (char === '\r' && next === '\n') {
+        i += 1;
+      }
+      row.push(current);
+      if (row.some((cell) => String(cell || '').trim())) {
+        rows.push(row);
+      }
+      row = [];
+      current = '';
+      continue;
+    }
+
+    current += char;
+  }
+
+  if (current.length || row.length) {
+    row.push(current);
+    if (row.some((cell) => String(cell || '').trim())) {
+      rows.push(row);
+    }
+  }
+
+  return rows;
+}
+
+function normalizeCsvHeaderKey(header) {
+  return String(header || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+function getCsvFieldValue(row, headerMap, aliases) {
+  const aliasList = Array.isArray(aliases) ? aliases : [aliases];
+  for (let i = 0; i < aliasList.length; i += 1) {
+    const key = normalizeCsvHeaderKey(aliasList[i]);
+    if (headerMap.has(key)) {
+      const index = headerMap.get(key);
+      return String(row[index] || '').trim();
+    }
+  }
+  return '';
+}
+
+function cleanFornecedorNome(value) {
+  return String(value || '').replace(/\s+/g, ' ').trim();
+}
+
+function normalizeReferenceToken(value) {
+  return String(value || '')
+    .toUpperCase()
+    .replace(/\s+/g, '')
+    .replace(/\./g, '/')
+    .replace(/N[º°O]/g, '')
+    .trim();
+}
+
+function extractParentReferenceFromObjeto(objeto) {
+  const text = String(objeto || '').toUpperCase();
+  const contractMatch = text.match(/CONTRATO\s*(?:N[º°O\.]*)?\s*([0-9]{1,4}[\/.][0-9]{2,4})/);
+  if (contractMatch) {
+    return String(contractMatch[1] || '').trim();
+  }
+
+  const arpMatch = text.match(/ARP\s*(?:N[º°O\.]*)?\s*([0-9]{1,4}[\/.][0-9]{2,4})/);
+  if (arpMatch) {
+    return String(arpMatch[1] || '').trim();
+  }
+
+  return '';
+}
+
+function importContratosFromCsvText(csvText, replaceExisting = false) {
+  const rows = parseCsvRows(csvText);
+  if (!rows.length) {
+    return { imported: 0, updated: 0, skipped: 0, total: 0 };
+  }
+
+  const header = rows[0] || [];
+  const dataRows = rows.slice(1);
+  const headerMap = new Map();
+  header.forEach((item, index) => {
+    headerMap.set(normalizeCsvHeaderKey(item), index);
+  });
+
+  const municipioPadrao = getMunicipiosList().includes('Bom Conselho/PE') ? 'Bom Conselho/PE' : (getMunicipiosList()[0] || '-');
+  const statusPadrao = normalizeStatusCatalog(state.statusCatalog).includes('ETP') ? 'ETP' : (normalizeStatusCatalog(state.statusCatalog)[0] || 'ETP');
+  const baseRecords = replaceExisting ? [] : getContratoArpRecords().slice();
+  const importedRecords = [];
+  let skipped = 0;
+
+  dataRows.forEach((row) => {
+    const objeto = getCsvFieldValue(row, headerMap, ['Objeto']);
+    const fornecedor = cleanFornecedorNome(getCsvFieldValue(row, headerMap, ['Fornecedor']));
+    const cnpjRaw = getCsvFieldValue(row, headerMap, ['CNPJ']);
+    const cnpjDigits = normalizeCnpj(cnpjRaw);
+    const cnpj = cnpjDigits.length === 14 ? cnpjRaw : '';
+    const fundo = getCsvFieldValue(row, headerMap, ['Fundo']) || '-';
+    const dataInicio = normalizeDateInputValue(getCsvFieldValue(row, headerMap, ['Início', 'Inicio']));
+    const dataTermino = normalizeDateInputValue(getCsvFieldValue(row, headerMap, ['Término', 'Termino']));
+    const tipoRaw = getCsvFieldValue(row, headerMap, ['Tipo']);
+    const processo = getCsvFieldValue(row, headerMap, ['Processo']);
+    const numeroRaw = getCsvFieldValue(row, headerMap, ['Número', 'Numero']);
+    const ordemRaw = getCsvFieldValue(row, headerMap, ['de ordem', 'Ordem', 'N de ordem']);
+    const valorRaw = getCsvFieldValue(row, headerMap, ['Valor']);
+    const copiaRaw = getCsvFieldValue(row, headerMap, ['Cópia', 'Copia']);
+    const editedBy = getCsvFieldValue(row, headerMap, ['Última edição por', 'Ultima edicao por']);
+
+    const tipoFromText = /TERMO\s+ADITIVO/i.test(objeto) ? 'Aditivo' : (normalizeContratoTipo(tipoRaw) || 'Contrato');
+    let numero = numeroRaw || ordemRaw || processo || '-';
+    if (tipoFromText === 'Aditivo') {
+      numero = normalizeTermoAditivoNumero(numero || ordemRaw || '1/2026');
+    }
+
+    if (!objeto && !fornecedor && !processo) {
+      skipped += 1;
+      return;
+    }
+
+    const parentRef = tipoFromText === 'Aditivo' ? extractParentReferenceFromObjeto(objeto) : '';
+    importedRecords.push({
+      id: crypto.randomUUID(),
+      tipo: tipoFromText,
+      numero,
+      objeto: objeto || '-',
+      empresaNome: fornecedor,
+      empresaCnpj: cnpj,
+      municipio: municipioPadrao,
+      secretaria: '-',
+      setorResponsavel: normalizeSetoresDestino(state.setoresDestino)[0] || '-',
+      fundo,
+      dataInicio,
+      dataTermino,
+      valorContratado: normalizeCurrencyBRValue(valorRaw),
+      documentoNome: String(copiaRaw || '').split(',')[0]?.trim() || '',
+      documentoDataUrl: '',
+      parentId: parentRef || null,
+      processoOrigem: processo,
+      modalidade: '-',
+      status: statusPadrao,
+      processoNumero: '',
+      demandId: '',
+      createdAtIso: new Date().toISOString(),
+      createdBy: editedBy || currentUser?.nome || 'Importação CSV'
+    });
+  });
+
+  const allForReference = [...baseRecords, ...importedRecords];
+  importedRecords.forEach((record) => {
+    if (record.tipo !== 'Aditivo') {
+      return;
+    }
+
+    const token = normalizeReferenceToken(record.parentId || '');
+    if (!token) {
+      return;
+    }
+
+    const match = allForReference.find((candidate) => {
+      const identifiers = [candidate.numero, candidate.processoOrigem, candidate.processoNumero]
+        .map((value) => normalizeReferenceToken(value));
+      return identifiers.includes(token) && candidate.id !== record.id;
+    });
+
+    if (match) {
+      record.parentId = match.numero;
+    }
+  });
+
+  const existing = replaceExisting ? [] : getContratoArpRecords().slice();
+  let imported = 0;
+  let updated = 0;
+
+  importedRecords.forEach((record) => {
+    const key = `${String(record.tipo || '').toLowerCase()}::${normalizeReferenceToken(record.numero)}::${normalizeReferenceToken(record.processoOrigem)}::${normalizeCnpj(record.empresaCnpj) || cleanFornecedorNome(record.empresaNome).toLowerCase()}`;
+    const currentIndex = existing.findIndex((item) => {
+      const itemKey = `${String(item.tipo || '').toLowerCase()}::${normalizeReferenceToken(item.numero)}::${normalizeReferenceToken(item.processoOrigem)}::${normalizeCnpj(item.empresaCnpj) || cleanFornecedorNome(item.empresaNome).toLowerCase()}`;
+      return itemKey === key;
+    });
+
+    if (currentIndex >= 0) {
+      existing[currentIndex] = {
+        ...existing[currentIndex],
+        ...record,
+        id: existing[currentIndex].id,
+        createdAtIso: existing[currentIndex].createdAtIso || record.createdAtIso,
+        createdBy: existing[currentIndex].createdBy || record.createdBy
+      };
+      updated += 1;
+    } else {
+      existing.push(record);
+      imported += 1;
+    }
+  });
+
+  state.contratosArps = normalizeContratoArpRecords(existing);
+  return {
+    imported,
+    updated,
+    skipped,
+    total: dataRows.length
+  };
 }
 
 function getDemandCreationDate(demand) {
@@ -4697,35 +5169,55 @@ function render() {
   persistState();
 }
 
-function getVinculoStatusLabel(vinculo) {
+function getVinculoRemainingDays(vinculo, linkedRecords = null) {
   const today = new Date();
-  const termino = parseDate(vinculo.dataTermino);
+  const termino = linkedRecords ? getContratoEffectiveDataTermino(vinculo, linkedRecords) : parseDate(vinculo?.dataTermino);
   if (!termino) {
-    return vinculo.status || 'Indefinido';
+    return null;
   }
 
   const diffDays = Math.ceil((termino - today) / (1000 * 60 * 60 * 24));
-  if (diffDays < 0) {
-    return 'Encerrado';
-  }
-  if (diffDays <= 45) {
-    return 'Vencendo';
-  }
-  return 'Vigente';
+  return Number.isFinite(diffDays) ? diffDays : null;
 }
 
-function getVinculoStatusClass(vinculo) {
-  const label = getVinculoStatusLabel(vinculo);
-  if (label === 'Encerrado') {
+function getVinculoStatusLabel(vinculo, linkedRecords = null) {
+  const remainingDays = getVinculoRemainingDays(vinculo, linkedRecords);
+  if (remainingDays === null) {
+    return vinculo.status || 'Indefinido';
+  }
+
+  if (remainingDays < 0) {
+    return `Encerrado (${Math.abs(remainingDays)}d)`;
+  }
+  if (remainingDays <= 60) {
+    return `Encerrando (${remainingDays}d)`;
+  }
+  return `Vigente (${remainingDays}d)`;
+}
+
+function getVinculoStatusClass(vinculo, linkedRecords = null) {
+  const remainingDays = getVinculoRemainingDays(vinculo, linkedRecords);
+  if (remainingDays === null) {
+    return 'status-vigente';
+  }
+
+  if (remainingDays < 0) {
     return 'status-encerrado';
   }
-  if (label === 'Vencendo') {
+  if (remainingDays <= 45) {
+    return 'status-encerrando-critico';
+  }
+  if (remainingDays <= 60) {
     return 'status-vencendo';
   }
   return 'status-vigente';
 }
 
 function parseDate(dateString) {
+  if (dateString instanceof Date) {
+    return new Date(dateString.getTime());
+  }
+
   if (!dateString) {
     return null;
   }
@@ -4836,7 +5328,9 @@ function getFornecedoresCatalog() {
       fundo: record.fundo,
       dataInicio: record.dataInicio,
       dataTermino: record.dataTermino,
-      parentId: record.parentId || record.processoOrigem || null
+      parentId: record.parentId || record.processoOrigem || null,
+      processoOrigem: record.processoOrigem || null,
+      processoNumero: record.processoNumero || null
     });
   });
 
@@ -4872,6 +5366,50 @@ function getFornecedoresCatalog() {
   });
 
   return staticSuppliers;
+}
+
+function getVinculoHierarchyIdentifiers(vinculo) {
+  return [vinculo?.numero, vinculo?.parentId, vinculo?.processoOrigem, vinculo?.processoNumero]
+    .map((value) => String(value || '').trim())
+    .filter(Boolean);
+}
+
+function orderVinculosByHierarchy(vinculos) {
+  const list = Array.isArray(vinculos) ? vinculos.slice() : [];
+  const roots = list.filter((item) => {
+    const parentId = String(item?.parentId || '').trim();
+    return !parentId || !list.some((candidate) => getVinculoHierarchyIdentifiers(candidate).includes(parentId));
+  });
+
+  const ordered = [];
+  const visited = new Set();
+
+  const visit = (item, depth = 0) => {
+    if (!item || visited.has(String(item.numero || '').trim())) {
+      return;
+    }
+
+    visited.add(String(item.numero || '').trim());
+    ordered.push({ item, depth });
+
+    const itemIdentifiers = getVinculoHierarchyIdentifiers(item);
+    list.forEach((candidate) => {
+      const candidateNumero = String(candidate?.numero || '').trim();
+      if (visited.has(candidateNumero)) {
+        return;
+      }
+
+      const candidateParent = String(candidate?.parentId || '').trim();
+      if (candidateParent && itemIdentifiers.includes(candidateParent)) {
+        visit(candidate, depth + 1);
+      }
+    });
+  };
+
+  roots.forEach((root) => visit(root, 0));
+  list.forEach((item) => visit(item, 0));
+
+  return ordered;
 }
 
 function normalizeSupplierVinculoType(input) {
@@ -4913,6 +5451,30 @@ function normalizeContratoTipo(input) {
   return null;
 }
 
+function normalizeTermoAditivoNumero(value) {
+  const raw = String(value || '').trim();
+  if (!raw) {
+    return '';
+  }
+
+  const normalized = raw.replace(/\s+/g, ' ').toLowerCase();
+  if (normalized.includes('termo aditivo')) {
+    const match = normalized.match(/(\d+)/);
+    if (match) {
+      return `${Number(match[1])}º TERMO ADITIVO`;
+    }
+    return raw.toUpperCase();
+  }
+
+  const compact = raw.replace(/\s/g, '');
+  const directMatch = compact.match(/^(\d+)(?:\/[0-9]{2,4})?$/);
+  if (directMatch) {
+    return `${Number(directMatch[1])}º TERMO ADITIVO`;
+  }
+
+  return raw;
+}
+
 function normalizeContratoArpRecords(records) {
   if (!Array.isArray(records)) {
     return [];
@@ -4920,10 +5482,13 @@ function normalizeContratoArpRecords(records) {
 
   return records
     .filter((record) => record && typeof record === 'object')
-    .map((record) => ({
+    .map((record) => {
+      const tipo = normalizeContratoTipo(record.tipo) || 'Contrato';
+      const numeroRaw = String(record.numero || '-').trim() || '-';
+      return {
       id: String(record.id || crypto.randomUUID()),
-      tipo: normalizeContratoTipo(record.tipo) || 'Contrato',
-      numero: String(record.numero || '-').trim() || '-',
+      tipo,
+      numero: tipo === 'Aditivo' ? normalizeTermoAditivoNumero(numeroRaw) : numeroRaw,
       objeto: String(record.objeto || '-').trim() || '-',
       empresaNome: String(record.empresaNome || '').trim(),
       empresaCnpj: String(record.empresaCnpj || '').trim(),
@@ -4933,6 +5498,10 @@ function normalizeContratoArpRecords(records) {
       fundo: String(record.fundo || '-').trim() || '-',
       dataInicio: normalizeDateInputValue(record.dataInicio),
       dataTermino: normalizeDateInputValue(record.dataTermino),
+      valorContratado: String(record.valorContratado || '').trim(),
+      documentoLink: String(record.documentoLink || '').trim(),
+      documentoNome: String(record.documentoNome || '').trim(),
+      documentoDataUrl: String(record.documentoDataUrl || '').trim(),
       parentId: record.parentId ? String(record.parentId).trim() : null,
       processoOrigem: String(record.processoOrigem || '').trim(),
       modalidade: String(record.modalidade || '-').trim() || '-',
@@ -4941,7 +5510,8 @@ function normalizeContratoArpRecords(records) {
       demandId: String(record.demandId || '').trim() || '',
       createdAtIso: String(record.createdAtIso || new Date().toISOString()),
       createdBy: String(record.createdBy || currentUser?.nome || 'Sistema').trim()
-    }));
+      };
+    });
 }
 
 function getContratoArpRecords() {
@@ -4980,10 +5550,13 @@ function buildDemandPayloadFromContrato(record, existingDemand = null) {
     numeroOrdem: modalidade && modalidade !== '-' ? getNextNumeroOrdemByModalidade(modalidade, existingDemand?.id || null) : '-',
     prioridade: String(existingDemand?.prioridade || 'Média'),
     valorEstimado: String(existingDemand?.valorEstimado || ''),
-    valorContratado: String(existingDemand?.valorContratado || ''),
+    valorContratado: String(record.valorContratado || existingDemand?.valorContratado || ''),
     empresaNome: String(record.empresaNome || existingDemand?.empresaNome || '').trim(),
     empresaCnpj: String(record.empresaCnpj || existingDemand?.empresaCnpj || '').trim(),
     processoOrigem: String(record.processoOrigem || existingDemand?.processoOrigem || '').trim(),
+    documentoVirtualLink: String(record.documentoLink || existingDemand?.documentoVirtualLink || '').trim(),
+    documentoAnexoNome: String(record.documentoNome || existingDemand?.documentoAnexoNome || '').trim(),
+    documentoAnexoDataUrl: String(record.documentoDataUrl || existingDemand?.documentoAnexoDataUrl || '').trim(),
     protocolante: String(existingDemand?.protocolante || currentUser?.nome || '-'),
     year: existingDemand?.year,
     sequencial: existingDemand?.sequencial,
@@ -5022,15 +5595,43 @@ function upsertLicitacaoDemandFromContrato(record) {
   return createdDemand;
 }
 
+function syncLinkedDemandFromContrato(record) {
+  const linkedDemandId = String(record?.demandId || '').trim();
+  const linkedProcessoNumero = String(record?.processoNumero || '').trim();
+  if (!linkedDemandId && !linkedProcessoNumero) {
+    return null;
+  }
+
+  const demandas = Array.isArray(state.licitacoesDemandas) ? state.licitacoesDemandas : [];
+  const linkedDemand = demandas.find((item) => String(item.id || '').trim() === linkedDemandId || String(item.processoNumero || '').trim() === linkedProcessoNumero) || null;
+  if (!linkedDemand) {
+    return null;
+  }
+
+  const updated = buildDemandPayloadFromContrato(record, linkedDemand);
+  const index = demandas.findIndex((item) => String(item.id || '').trim() === String(linkedDemand.id || '').trim());
+  if (index >= 0) {
+    demandas[index] = updated;
+    state.licitacoesDemandas = demandas;
+    return updated;
+  }
+
+  return null;
+}
+
 function saveContratoArpRecord(inputRecord, existingId = null) {
   const records = getContratoArpRecords();
   const normalized = normalizeContratoArpRecords([{ ...inputRecord, id: existingId || inputRecord.id || crypto.randomUUID() }])[0];
-
-  const updatedDemand = upsertLicitacaoDemandFromContrato(normalized);
-  normalized.demandId = updatedDemand.id;
-  normalized.processoNumero = updatedDemand.processoNumero;
-  normalized.status = updatedDemand.status;
   normalized.processoOrigem = String(inputRecord?.processoOrigem || normalized.processoOrigem || '').trim();
+  normalized.processoNumero = String(inputRecord?.processoNumero || normalized.processoNumero || '').trim();
+  normalized.demandId = String(inputRecord?.demandId || normalized.demandId || '').trim();
+
+  const updatedDemand = syncLinkedDemandFromContrato(normalized);
+  if (updatedDemand) {
+    normalized.demandId = updatedDemand.id;
+    normalized.processoNumero = updatedDemand.processoNumero;
+    normalized.status = updatedDemand.status;
+  }
 
   const idx = records.findIndex((item) => item.id === normalized.id);
   if (idx >= 0) {
@@ -5082,10 +5683,10 @@ function createSupplierVinculo(supplier) {
 
   let parentId = null;
   if (tipo === 'Aditivo' || tipo === 'Apostilamento') {
-    const baseLinks = (supplier.vinculos || []).filter((vinculo) => vinculo.tipo === 'Contrato' || vinculo.tipo === 'ARP');
+    const baseLinks = (supplier.vinculos || []).filter((vinculo) => vinculo.tipo !== tipo);
     if (baseLinks.length) {
       const parentChoice = window.prompt(
-        `Vínculo principal opcional:\n${baseLinks.map((vinculo) => `${vinculo.tipo} ${vinculo.numero}`).join('\n')}\n\nDigite o número do contrato/ARP ou deixe em branco para avulso:`,
+        `Vínculo principal obrigatório para termo aditivo:\n${baseLinks.map((vinculo) => `${vinculo.tipo} ${vinculo.numero}${vinculo.processoOrigem ? ` • Proc. ${vinculo.processoOrigem}` : ''}`).join('\n')}\n\nDigite o número do contrato, do processo administrativo ou deixe em branco para avulso:`,
         ''
       );
       if (parentChoice === null) {
@@ -5094,8 +5695,11 @@ function createSupplierVinculo(supplier) {
 
       const normalizedParent = parentChoice.trim();
       if (normalizedParent) {
-        const matchedParent = baseLinks.find((vinculo) => String(vinculo.numero).toLowerCase() === normalizedParent.toLowerCase());
-        parentId = matchedParent ? matchedParent.numero : normalizedParent;
+        const matchedParent = baseLinks.find((vinculo) => {
+          const identifiers = [vinculo.numero, vinculo.processoOrigem, vinculo.processoNumero].map((value) => String(value || '').trim().toLowerCase()).filter(Boolean);
+          return identifiers.includes(normalizedParent.toLowerCase());
+        });
+        parentId = matchedParent ? (matchedParent.numero || normalizedParent) : normalizedParent;
       }
     }
   }
@@ -6277,12 +6881,8 @@ function renderModuleContent(moduleKey) {
     const records = getContratoArpRecords();
     const termo = String(filtrosContratos.termo || '').trim().toLowerCase();
     const filteredRecords = records.filter((item) => {
-      if (!termo) {
-        return true;
-      }
-      return [item.tipo, item.numero, item.objeto, item.processoNumero, item.secretaria, item.municipio]
-        .concat([item.empresaNome, item.empresaCnpj])
-        .some((value) => String(value || '').toLowerCase().includes(termo));
+      return recordMatchesContratoSearch(item, termo, records)
+        || [item.secretaria, item.municipio].some((value) => String(value || '').toLowerCase().includes(termo));
     });
 
     if (!selectedContratoId && filteredRecords.length) {
@@ -6312,6 +6912,9 @@ function renderModuleContent(moduleKey) {
       fundo: 'Tesouro Municipal',
       dataInicio: '',
       dataTermino: '',
+      valorContratado: '',
+      documentoNome: '',
+      documentoDataUrl: '',
       parentId: '',
       processoOrigem: '',
       modalidade: '-',
@@ -6324,11 +6927,18 @@ function renderModuleContent(moduleKey) {
       selectedRecord = draftRecord;
     }
 
+    const isFormMode = canEdit && (creatingContratoRecord || editingContratoRecord);
+    const isAditivoRecord = isTermoAditivoRecord(selectedRecord);
+    const aditivoNumeroPreview = isAditivoRecord && selectedRecord?.parentId
+      ? formatTermoAditivoNumero(findContratoRecordByNumero(selectedRecord.parentId, records) || selectedRecord, records, selectedRecord?.id)
+      : '';
+
     const selectedRecordId = selectedRecord?.id || null;
     const modalidadesList = normalizeModalidades(state.modalidades);
     const statusCatalog = normalizeStatusCatalog(state.statusCatalog);
+    const linkedFamilyRecords = selectedRecord ? getContratoFamilyRecords(selectedRecord, records) : [];
     const baseParentOptions = records
-      .filter((item) => item.tipo === 'Contrato' || item.tipo === 'ARP')
+      .filter((item) => item.id !== selectedRecord?.id)
       .map((item) => `<option value="${escapeHtml(item.numero)}" ${item.numero === selectedRecord?.parentId ? 'selected' : ''}>${escapeHtml(item.tipo)} ${escapeHtml(item.numero)}</option>`)
       .join('');
 
@@ -6345,16 +6955,17 @@ function renderModuleContent(moduleKey) {
           <div>
             <p class="eyebrow">Gestão contratual</p>
             <h2>Gestão de Contratos / ARPs</h2>
-            <p class="subtitle">Cadastro de contratos, ARPs e termos aditivos avulsos com geração de processo vinculada.</p>
+            <p class="subtitle">Cadastro histórico de contratos, ARPs e termos aditivos avulsos.</p>
           </div>
         </div>
 
         <div class="supplier-toolbar">
           <label class="field search-field">
             <span>Buscar registro</span>
-            <input id="contratoSearch" type="search" placeholder="Digite número, tipo, processo ou objeto" value="${escapeHtml(filtrosContratos.termo)}" />
+            <input id="contratoSearch" type="search" placeholder="Digite número, tipo, processo original ou objeto" value="${escapeHtml(filtrosContratos.termo)}" />
           </label>
           <div class="supplier-toolbar-actions">
+            ${canEdit ? '<button id="importContratoCsvBtn" class="supplier-toolbar-btn" type="button">Importar CSV</button>' : ''}
             ${canEdit ? '<button id="addContratoRecordBtn" class="supplier-toolbar-btn" type="button">+ Novo registro</button>' : ''}
           </div>
         </div>
@@ -6365,7 +6976,7 @@ function renderModuleContent(moduleKey) {
               <div class="supplier-card-shell">
                 <button class="supplier-card ${record.id === selectedRecordId ? 'active' : ''}" type="button" data-contrato-id="${escapeHtml(record.id)}">
                   <strong>${escapeHtml(record.tipo)} ${escapeHtml(record.numero || '-')}</strong>
-                  <span>${escapeHtml(record.processoNumero || 'Sem processo')}</span>
+                  <span>${escapeHtml(record.processoOrigem || 'Processo original não informado')}</span>
                   <small class="subtle-meta">${escapeHtml(record.empresaNome || 'Empresa não informada')} • ${escapeHtml(record.municipio || '-')} • ${escapeHtml(record.secretaria || '-')}</small>
                 </button>
                 ${canEdit ? `<button class="supplier-card-delete" type="button" title="Excluir registro" aria-label="Excluir registro ${escapeHtml(record.numero || record.id)}" data-delete-contrato-id="${escapeHtml(record.id)}">🗑️</button>` : ''}
@@ -6375,109 +6986,177 @@ function renderModuleContent(moduleKey) {
 
           <div class="supplier-detail-panel">
             ${selectedRecord ? `
-              <div class="detail-header">
-                <p class="eyebrow">Dados do registro</p>
-                <h3>${escapeHtml(selectedRecord.tipo)} ${escapeHtml(selectedRecord.numero || '')}</h3>
-                <p>Processo vinculado: ${escapeHtml(selectedRecord.processoNumero || 'será criado ao salvar')}</p>
-              </div>
+              ${isFormMode ? `
+                <div class="detail-header">
+                  <p class="eyebrow">Dados do registro</p>
+                  <h3>${escapeHtml(selectedRecord.tipo)} ${escapeHtml(selectedRecord.numero || '')}</h3>
+                  <p>Preencha os dados históricos do contrato/ARP.</p>
+                </div>
 
-              <div class="detail-section">
-                <div class="detail-grid">
-                  <div class="detail-row full">
-                    <span>Nome da empresa</span>
-                    <input id="contratoEmpresaNome" type="text" value="${escapeHtml(selectedRecord.empresaNome || '')}" ${canEdit ? '' : 'disabled'} />
-                  </div>
-                  <div class="detail-row">
-                    <span>CNPJ</span>
-                    <input id="contratoEmpresaCnpj" type="text" value="${escapeHtml(selectedRecord.empresaCnpj || '')}" ${canEdit ? '' : 'disabled'} />
-                  </div>
-                  <div class="detail-row">
-                    <span>Tipo</span>
-                    <select id="contratoTipo" ${canEdit ? '' : 'disabled'}>
-                      <option value="Contrato" ${selectedRecord.tipo === 'Contrato' ? 'selected' : ''}>Contrato</option>
-                      <option value="ARP" ${selectedRecord.tipo === 'ARP' ? 'selected' : ''}>ARP</option>
-                      <option value="Aditivo" ${selectedRecord.tipo === 'Aditivo' ? 'selected' : ''}>Termo Aditivo (avulso)</option>
-                    </select>
-                  </div>
-                  <div class="detail-row">
-                    <span>Número</span>
-                    <input id="contratoNumero" type="text" value="${escapeHtml(selectedRecord.numero || '')}" ${canEdit ? '' : 'disabled'} />
-                  </div>
-                  <div class="detail-row full">
-                    <span>Objeto</span>
-                    <textarea id="contratoObjeto" rows="3" ${canEdit ? '' : 'disabled'}>${escapeHtml(selectedRecord.objeto || '')}</textarea>
-                  </div>
-                  <div class="detail-row">
-                    <span>Município</span>
-                    <select id="contratoMunicipio" ${canEdit ? '' : 'disabled'}>
-                      <option value="-" ${selectedRecord.municipio === '-' ? 'selected' : ''}>-</option>
-                      ${getMunicipiosList().map((municipio) => `<option value="${escapeHtml(municipio)}" ${selectedRecord.municipio === municipio ? 'selected' : ''}>${escapeHtml(municipio)}</option>`).join('')}
-                    </select>
-                  </div>
-                  <div class="detail-row">
-                    <span>Secretaria</span>
-                    <select id="contratoSecretaria" ${canEdit ? '' : 'disabled'}></select>
-                  </div>
-                  <div class="detail-row">
-                    <span>Setor responsável</span>
-                    <select id="contratoSetor" ${canEdit ? '' : 'disabled'}>
-                      ${normalizeSetoresDestino(state.setoresDestino).map((setor) => `<option value="${escapeHtml(setor)}" ${selectedRecord.setorResponsavel === setor ? 'selected' : ''}>${escapeHtml(setor)}</option>`).join('')}
-                    </select>
-                  </div>
-                  <div class="detail-row">
-                    <span>Fundo</span>
-                    <select id="contratoFundo" ${canEdit ? '' : 'disabled'}>
-                      ${fundosOptions.map((fundo) => `<option value="${escapeHtml(fundo)}" ${selectedRecord.fundo === fundo ? 'selected' : ''}>${escapeHtml(fundo)}</option>`).join('')}
-                    </select>
-                  </div>
-                  <div class="detail-row">
-                    <span>Modalidade</span>
-                    <select id="contratoModalidade" ${canEdit ? '' : 'disabled'}>
-                      <option value="-" ${selectedRecord.modalidade === '-' ? 'selected' : ''}>-</option>
-                      ${modalidadesList.map((modalidade) => `<option value="${escapeHtml(modalidade)}" ${selectedRecord.modalidade === modalidade ? 'selected' : ''}>${escapeHtml(modalidade)}</option>`).join('')}
-                    </select>
-                  </div>
-                  <div class="detail-row">
-                    <span>Status</span>
-                    <select id="contratoStatus" ${canEdit ? '' : 'disabled'}>
-                      ${statusCatalog.map((status) => `<option value="${escapeHtml(status)}" ${selectedRecord.status === status ? 'selected' : ''}>${escapeHtml(status)}</option>`).join('')}
-                    </select>
-                  </div>
-                  <div class="detail-row">
-                    <span>Data de início</span>
-                    <input id="contratoDataInicio" type="date" value="${escapeHtml(normalizeDateInputValue(selectedRecord.dataInicio || ''))}" ${canEdit ? '' : 'disabled'} />
-                  </div>
-                  <div class="detail-row">
-                    <span>Data de vigência/término</span>
-                    <input id="contratoDataTermino" type="date" value="${escapeHtml(normalizeDateInputValue(selectedRecord.dataTermino || ''))}" ${canEdit ? '' : 'disabled'} />
-                  </div>
-                  <div class="detail-row">
-                    <span>Vínculo principal (opcional)</span>
-                    <select id="contratoParent" ${canEdit ? '' : 'disabled'}>
-                      <option value="">Avulso</option>
-                      ${baseParentOptions}
-                    </select>
-                  </div>
-                  <div class="detail-row">
-                    <span>Processo original (opcional)</span>
-                    <input id="contratoProcessoOrigem" list="contratoProcessoOrigemList" value="${escapeHtml(selectedRecord.processoOrigem || '')}" ${canEdit ? '' : 'disabled'} />
-                    <datalist id="contratoProcessoOrigemList">
-                      ${processosOrigemOptions.map((numero) => `<option value="${escapeHtml(numero)}"></option>`).join('')}
-                    </datalist>
-                  </div>
-                  <div class="detail-row">
-                    <span>Processo criado</span>
-                    <strong>${escapeHtml(selectedRecord.processoNumero || '-')}</strong>
+                <div class="detail-section">
+                  <div class="detail-grid">
+                    <div class="detail-row full">
+                      <span>Nome da empresa</span>
+                      <input id="contratoEmpresaNome" type="text" value="${escapeHtml(selectedRecord.empresaNome || '')}" ${canEdit ? '' : 'disabled'} />
+                    </div>
+                    <div class="detail-row">
+                      <span>CNPJ</span>
+                      <input id="contratoEmpresaCnpj" type="text" value="${escapeHtml(selectedRecord.empresaCnpj || '')}" ${canEdit ? '' : 'disabled'} />
+                    </div>
+                    <div class="detail-row">
+                      <span>Tipo</span>
+                      <select id="contratoTipo" ${canEdit ? '' : 'disabled'}>
+                        <option value="Contrato" ${selectedRecord.tipo === 'Contrato' ? 'selected' : ''}>Contrato</option>
+                        <option value="ARP" ${selectedRecord.tipo === 'ARP' ? 'selected' : ''}>ARP</option>
+                        <option value="Aditivo" ${selectedRecord.tipo === 'Aditivo' ? 'selected' : ''}>Termo Aditivo (avulso)</option>
+                      </select>
+                    </div>
+                    <div class="detail-row">
+                      <span>Número</span>
+                      ${isAditivoRecord ? `<input id="contratoNumero" type="text" value="${escapeHtml(aditivoNumeroPreview || selectedRecord.numero || '')}" disabled />` : `<input id="contratoNumero" type="text" value="${escapeHtml(selectedRecord.numero || '')}" ${canEdit ? '' : 'disabled'} />`}
+                    </div>
+                    <div class="detail-row full">
+                      <span>Objeto</span>
+                      <textarea id="contratoObjeto" rows="3" ${canEdit ? '' : 'disabled'}>${escapeHtml(selectedRecord.objeto || '')}</textarea>
+                    </div>
+                    <div class="detail-row">
+                      <span>Município</span>
+                      <select id="contratoMunicipio" ${canEdit ? '' : 'disabled'}>
+                        <option value="-" ${selectedRecord.municipio === '-' ? 'selected' : ''}>-</option>
+                        ${getMunicipiosList().map((municipio) => `<option value="${escapeHtml(municipio)}" ${selectedRecord.municipio === municipio ? 'selected' : ''}>${escapeHtml(municipio)}</option>`).join('')}
+                      </select>
+                    </div>
+                    <div class="detail-row">
+                      <span>Secretaria</span>
+                      <select id="contratoSecretaria" ${canEdit ? '' : 'disabled'}></select>
+                    </div>
+                    <div class="detail-row">
+                      <span>Setor responsável</span>
+                      <select id="contratoSetor" ${canEdit ? '' : 'disabled'}>
+                        ${normalizeSetoresDestino(state.setoresDestino).map((setor) => `<option value="${escapeHtml(setor)}" ${selectedRecord.setorResponsavel === setor ? 'selected' : ''}>${escapeHtml(setor)}</option>`).join('')}
+                      </select>
+                    </div>
+                    <div class="detail-row">
+                      <span>Fundo</span>
+                      <select id="contratoFundo" ${canEdit ? '' : 'disabled'}>
+                        ${fundosOptions.map((fundo) => `<option value="${escapeHtml(fundo)}" ${selectedRecord.fundo === fundo ? 'selected' : ''}>${escapeHtml(fundo)}</option>`).join('')}
+                      </select>
+                    </div>
+                    <div class="detail-row">
+                      <span>Modalidade</span>
+                      <select id="contratoModalidade" ${canEdit ? '' : 'disabled'}>
+                        <option value="-" ${selectedRecord.modalidade === '-' ? 'selected' : ''}>-</option>
+                        ${modalidadesList.map((modalidade) => `<option value="${escapeHtml(modalidade)}" ${selectedRecord.modalidade === modalidade ? 'selected' : ''}>${escapeHtml(modalidade)}</option>`).join('')}
+                      </select>
+                    </div>
+                    <div class="detail-row">
+                      <span>Status</span>
+                      <select id="contratoStatus" ${canEdit ? '' : 'disabled'}>
+                        ${statusCatalog.map((status) => `<option value="${escapeHtml(status)}" ${selectedRecord.status === status ? 'selected' : ''}>${escapeHtml(status)}</option>`).join('')}
+                      </select>
+                    </div>
+                    <div class="detail-row">
+                      <span>Data de início</span>
+                      <input id="contratoDataInicio" type="date" value="${escapeHtml(normalizeDateInputValue(selectedRecord.dataInicio || ''))}" ${canEdit ? '' : 'disabled'} />
+                    </div>
+                    <div class="detail-row">
+                      <span>Data de vigência/término</span>
+                      <input id="contratoDataTermino" type="date" value="${escapeHtml(normalizeDateInputValue(selectedRecord.dataTermino || ''))}" ${canEdit ? '' : 'disabled'} />
+                    </div>
+                    <div class="detail-row">
+                      <span>Valor contratado</span>
+                      <input id="contratoValorContratado" type="text" inputmode="decimal" placeholder="R$ 0,00" value="${escapeHtml(normalizeCurrencyBRValue(selectedRecord.valorContratado || ''))}" ${canEdit ? '' : 'disabled'} />
+                    </div>
+                    <div class="detail-row full">
+                      <span>Anexar PDF (opcional)</span>
+                      <input id="contratoDocumentoFile" type="file" accept="application/pdf" ${canEdit ? '' : 'disabled'} />
+                      <div class="vinculo-footer">
+                        <small>${escapeHtml(selectedRecord.documentoNome || 'Nenhum PDF anexado')}</small>
+                        ${(selectedRecord.documentoDataUrl) ? '<button type="button" id="previewContratoDocumentoBtn" class="doc-preview-btn" title="Visualização rápida">👁</button>' : ''}
+                      </div>
+                    </div>
+                    <div class="detail-row">
+                      <span>${isAditivoRecord ? 'Contrato ou processo administrativo vinculado' : 'Vínculo principal (opcional)'}</span>
+                      <select id="contratoParent" ${canEdit ? '' : 'disabled'} ${isAditivoRecord ? 'required' : ''}>
+                        <option value="">Avulso</option>
+                        ${baseParentOptions}
+                      </select>
+                    </div>
+                    <div class="detail-row">
+                      <span>${isAditivoRecord ? 'Processo administrativo de origem' : 'Número do processo original'}</span>
+                      <input id="contratoProcessoOrigem" list="contratoProcessoOrigemList" value="${escapeHtml(selectedRecord.processoOrigem || '')}" ${canEdit ? '' : 'disabled'} ${isAditivoRecord ? 'required' : ''} />
+                      <datalist id="contratoProcessoOrigemList">
+                        ${processosOrigemOptions.map((numero) => `<option value="${escapeHtml(numero)}"></option>`).join('')}
+                      </datalist>
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              ${canEdit ? `
-                <div class="form-actions">
-                  <button class="btn-save" id="saveContratoRecordBtn" type="button">Salvar registro</button>
-                  ${creatingContratoRecord ? '<button class="btn-cancel" id="cancelContratoRecordBtn" type="button">Cancelar</button>' : ''}
+                ${canEdit ? `
+                  <div class="form-actions">
+                    <button class="btn-save" id="saveContratoRecordBtn" type="button">Salvar registro</button>
+                    <button class="btn-cancel" id="cancelContratoRecordBtn" type="button">Cancelar</button>
+                  </div>
+                ` : ''}
+              ` : `
+                <div class="detail-header">
+                  <p class="eyebrow">Resumo do registro</p>
+                  <h3>${escapeHtml(selectedRecord.tipo)} ${escapeHtml(selectedRecord.numero || '')}</h3>
+                  <p>${escapeHtml(selectedRecord.objeto || '-')}</p>
                 </div>
-              ` : ''}
+                <div class="detail-section">
+                  <div class="detail-grid">
+                    <div class="vinculo-card ${getVinculoStatusClass(selectedRecord, linkedFamilyRecords)}">
+                      <div class="vinculo-head">
+                        <span class="vinculo-type">${escapeHtml(selectedRecord.tipo || '-')}</span>
+                        <strong>${escapeHtml(selectedRecord.numero || '-')}</strong>
+                      </div>
+                      <p>${escapeHtml(selectedRecord.empresaNome || 'Empresa não informada')} • ${escapeHtml(selectedRecord.empresaCnpj || '-')}</p>
+                      <div class="vinculo-dates">
+                        <div><span>Data de início</span><strong>${escapeHtml(formatDateForDisplay(selectedRecord.dataInicio || '-'))}</strong></div>
+                        <div><span>Data de término</span><strong>${escapeHtml(formatDateForDisplay(getContratoEffectiveDataTermino(selectedRecord, linkedFamilyRecords) || selectedRecord.dataTermino || '-'))}</strong></div>
+                      </div>
+                      <div class="detail-row compact">
+                        <span>Município / Secretaria</span>
+                        <strong>${escapeHtml(selectedRecord.municipio || '-')} • ${escapeHtml(selectedRecord.secretaria || '-')}</strong>
+                      </div>
+                      <div class="detail-row compact">
+                        <span>Fundo</span>
+                        <strong>${escapeHtml(selectedRecord.fundo || '-')}</strong>
+                      </div>
+                      <div class="detail-row compact">
+                        <span>Valor contratado</span>
+                        <strong>${escapeHtml(normalizeCurrencyBRValue(selectedRecord.valorContratado || '')) || '-'}</strong>
+                      </div>
+                      <div class="vinculo-footer">
+                        <span class="status-badge ${getVinculoStatusClass(selectedRecord, linkedFamilyRecords)}">${getVinculoStatusLabel(selectedRecord, linkedFamilyRecords)}</span>
+                        <small>Processo original: ${escapeHtml(selectedRecord.processoOrigem || 'Não informado')}</small>
+                      </div>
+                      <div class="vinculo-footer">
+                        <small>PDF: ${escapeHtml(selectedRecord.documentoNome || 'Não anexado')}</small>
+                        ${selectedRecord.documentoDataUrl ? '<button type="button" id="previewContratoDocumentoResumoBtn" class="doc-preview-btn" title="Visualização rápida">👁</button>' : ''}
+                      </div>
+                      <div class="detail-row compact">
+                        <span>Instrumentos vinculados</span>
+                        <div class="contract-family-list">
+                          ${linkedFamilyRecords.length ? linkedFamilyRecords.map((item) => `
+                            <div class="contract-family-item ${item.id === selectedRecord.id ? 'is-current' : ''}">
+                              <strong>${escapeHtml(item.tipo)} ${escapeHtml(item.numero || '-')}</strong>
+                              <small>${escapeHtml(item.processoOrigem || 'Sem processo original')}</small>
+                              <span class="status-badge ${getVinculoStatusClass(item, linkedFamilyRecords)}">${getVinculoStatusLabel(item, linkedFamilyRecords)}</span>
+                            </div>
+                          `).join('') : '<small>Nenhum vínculo adicional encontrado.</small>'}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                ${canEdit ? `
+                  <div class="form-actions">
+                    <button class="btn-save" id="editContratoRecordBtn" type="button">Editar registro</button>
+                  </div>
+                ` : ''}
+              `}
             ` : '<div class="empty-state">Selecione um registro à esquerda para visualizar ou editar.</div>'}
           </div>
         </div>
@@ -6496,8 +7175,39 @@ function renderModuleContent(moduleKey) {
     if (addBtn) {
       addBtn.addEventListener('click', () => {
         creatingContratoRecord = true;
+        editingContratoRecord = true;
         selectedContratoId = null;
         renderModuleContent('contratos');
+      });
+    }
+
+    const importCsvBtn = document.getElementById('importContratoCsvBtn');
+    if (importCsvBtn && canEdit) {
+      importCsvBtn.addEventListener('click', async () => {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.csv,text/csv';
+        input.addEventListener('change', async () => {
+          const file = input.files?.[0];
+          if (!file) {
+            return;
+          }
+
+          try {
+            const csvText = await readFileAsText(file);
+            const replaceExisting = window.confirm('Clique em OK para substituir todos os registros atuais. Clique em Cancelar para mesclar com os registros existentes.');
+            const result = importContratosFromCsvText(csvText, replaceExisting);
+            persistState();
+            creatingContratoRecord = false;
+            editingContratoRecord = false;
+            selectedContratoId = getContratoArpRecords()[0]?.id || null;
+            window.alert(`Importação concluída. Total lido: ${result.total}. Novos: ${result.imported}. Atualizados: ${result.updated}. Ignorados: ${result.skipped}.`);
+            renderModuleContent('contratos');
+          } catch (error) {
+            window.alert('Falha ao importar CSV. Verifique o formato do arquivo e tente novamente.');
+          }
+        });
+        input.click();
       });
     }
 
@@ -6505,6 +7215,7 @@ function renderModuleContent(moduleKey) {
       button.addEventListener('click', () => {
         selectedContratoId = button.getAttribute('data-contrato-id');
         creatingContratoRecord = false;
+        editingContratoRecord = false;
         renderModuleContent('contratos');
       });
     });
@@ -6519,12 +7230,9 @@ function renderModuleContent(moduleKey) {
         if (!window.confirm('Excluir este registro contratual?')) {
           return;
         }
-        const current = getContratoArpRecords().find((item) => item.id === recordId);
         state.contratosArps = getContratoArpRecords().filter((item) => item.id !== recordId);
-        if (current?.demandId) {
-          state.licitacoesDemandas = (Array.isArray(state.licitacoesDemandas) ? state.licitacoesDemandas : []).filter((item) => item.id !== current.demandId);
-        }
         selectedContratoId = null;
+        editingContratoRecord = false;
         persistState();
         renderModuleContent('contratos');
       });
@@ -6532,6 +7240,7 @@ function renderModuleContent(moduleKey) {
 
     const municipioSelect = document.getElementById('contratoMunicipio');
     const secretariaSelect = document.getElementById('contratoSecretaria');
+    const valorContratadoInput = document.getElementById('contratoValorContratado');
     const syncSecretarias = () => {
       if (!municipioSelect || !secretariaSelect) {
         return;
@@ -6566,17 +7275,107 @@ function renderModuleContent(moduleKey) {
       secretariaSelect.addEventListener('change', syncSecretarias);
     }
 
+    const parentSelect = document.getElementById('contratoParent');
+    const numeroInput = document.getElementById('contratoNumero');
+    const tipoSelect = document.getElementById('contratoTipo');
+    const processoOrigemInput = document.getElementById('contratoProcessoOrigem');
+
+    const refreshAditivoPreview = () => {
+      const currentTipo = String(tipoSelect?.value || selectedRecord?.tipo || 'Contrato').trim();
+      const isAditivo = currentTipo === 'Aditivo';
+      if (!numeroInput) {
+        return;
+      }
+
+      if (parentSelect) {
+        parentSelect.required = isAditivo;
+      }
+
+      if (processoOrigemInput) {
+        processoOrigemInput.required = isAditivo;
+      }
+
+      numeroInput.disabled = isAditivo;
+
+      if (isAditivo) {
+        const baseNumero = String(parentSelect?.value || '').trim();
+        const baseRecord = findContratoRecordByNumero(baseNumero, records);
+        numeroInput.value = baseRecord ? formatTermoAditivoNumero(baseRecord, records, selectedRecord?.id) : '';
+      }
+    };
+
+    if (parentSelect && tipoSelect) {
+      parentSelect.addEventListener('change', refreshAditivoPreview);
+      tipoSelect.addEventListener('change', refreshAditivoPreview);
+      refreshAditivoPreview();
+    }
+
+    if (valorContratadoInput && canEdit) {
+      valorContratadoInput.addEventListener('blur', () => {
+        valorContratadoInput.value = normalizeCurrencyBRValue(valorContratadoInput.value);
+      });
+    }
+
     const cancelBtn = document.getElementById('cancelContratoRecordBtn');
     if (cancelBtn) {
       cancelBtn.addEventListener('click', () => {
         creatingContratoRecord = false;
+        editingContratoRecord = false;
         renderModuleContent('contratos');
+      });
+    }
+
+    const editBtn = document.getElementById('editContratoRecordBtn');
+    if (editBtn) {
+      editBtn.addEventListener('click', () => {
+        creatingContratoRecord = false;
+        editingContratoRecord = true;
+        renderModuleContent('contratos');
+      });
+    }
+
+    const previewBtn = document.getElementById('previewContratoDocumentoBtn');
+    if (previewBtn && selectedRecord) {
+      previewBtn.addEventListener('click', () => {
+        const source = String(selectedRecord.documentoDataUrl || '').trim();
+        if (!source) {
+          window.alert('Nenhum documento disponível para visualização.');
+          return;
+        }
+        openDocumentPreviewModal(source);
+      });
+    }
+
+    const previewResumoBtn = document.getElementById('previewContratoDocumentoResumoBtn');
+    if (previewResumoBtn && selectedRecord) {
+      previewResumoBtn.addEventListener('click', () => {
+        const source = String(selectedRecord.documentoDataUrl || '').trim();
+        if (!source) {
+          window.alert('Nenhum documento disponível para visualização.');
+          return;
+        }
+        openDocumentPreviewModal(source);
       });
     }
 
     const saveBtn = document.getElementById('saveContratoRecordBtn');
     if (saveBtn && canEdit) {
-      saveBtn.addEventListener('click', () => {
+      saveBtn.addEventListener('click', async () => {
+        const fileInput = document.getElementById('contratoDocumentoFile');
+        const selectedFile = fileInput?.files?.[0] || null;
+        let uploadedDataUrl = String(selectedRecord?.documentoDataUrl || '').trim();
+        let uploadedName = String(selectedRecord?.documentoNome || '').trim();
+
+        if (selectedFile) {
+          try {
+            uploadedDataUrl = await readFileAsDataUrl(selectedFile);
+            uploadedName = String(selectedFile.name || 'documento.pdf');
+          } catch (error) {
+            window.alert('Não foi possível anexar o PDF selecionado.');
+            return;
+          }
+        }
+
         const payload = {
           empresaNome: String(document.getElementById('contratoEmpresaNome')?.value || '').trim(),
           empresaCnpj: String(document.getElementById('contratoEmpresaCnpj')?.value || '').trim(),
@@ -6589,18 +7388,39 @@ function renderModuleContent(moduleKey) {
           fundo: String(document.getElementById('contratoFundo')?.value || '').trim(),
           dataInicio: normalizeDateInputValue(document.getElementById('contratoDataInicio')?.value || ''),
           dataTermino: normalizeDateInputValue(document.getElementById('contratoDataTermino')?.value || ''),
+          valorContratado: normalizeCurrencyBRValue(document.getElementById('contratoValorContratado')?.value || ''),
+          documentoLink: '',
+          documentoNome: uploadedName,
+          documentoDataUrl: uploadedDataUrl,
           parentId: String(document.getElementById('contratoParent')?.value || '').trim() || null,
           processoOrigem: String(document.getElementById('contratoProcessoOrigem')?.value || '').trim(),
           modalidade: String(document.getElementById('contratoModalidade')?.value || '-').trim(),
           status: String(document.getElementById('contratoStatus')?.value || 'ETP').trim(),
-          processoNumero: selectedRecord?.processoNumero || '',
-          demandId: selectedRecord?.demandId || '',
+          processoNumero: '',
+          demandId: '',
           createdAtIso: selectedRecord?.createdAtIso || new Date().toISOString(),
           createdBy: selectedRecord?.createdBy || currentUser?.nome || 'Sistema'
         };
 
+        if (payload.tipo === 'Aditivo') {
+          const baseNumero = String(document.getElementById('contratoParent')?.value || '').trim();
+          const baseRecord = findContratoRecordByNumero(baseNumero, records);
+          payload.numero = baseRecord ? formatTermoAditivoNumero(baseRecord, records, selectedRecord?.id) : '';
+          payload.parentId = baseNumero || null;
+        }
+
         if (!payload.empresaNome || !payload.empresaCnpj || !payload.numero || !payload.objeto) {
           window.alert('Preencha empresa, CNPJ, número e objeto para salvar o registro.');
+          return;
+        }
+
+        if (payload.tipo === 'Aditivo' && !payload.processoOrigem) {
+          window.alert('Preencha o processo administrativo de origem para salvar o termo aditivo.');
+          return;
+        }
+
+        if (payload.tipo === 'Aditivo' && !payload.parentId) {
+          window.alert('Selecione o contrato ou processo administrativo base para o termo aditivo.');
           return;
         }
 
@@ -6608,6 +7428,7 @@ function renderModuleContent(moduleKey) {
         state.contratosArps = getContratoArpRecords();
         selectedContratoId = saved.id;
         creatingContratoRecord = false;
+        editingContratoRecord = false;
         persistState();
         renderModuleContent('contratos');
       });
@@ -6685,15 +7506,15 @@ function renderModuleContent(moduleKey) {
               </div>
               <div class="detail-section">
                 <div class="detail-grid">
-                  ${selectedSupplier.vinculos.map((vinculo, index) => {
-                    const statusClass = getVinculoStatusClass(vinculo);
+                  ${orderVinculosByHierarchy(selectedSupplier.vinculos).map(({ item: vinculo, depth }) => {
+                    const statusClass = getVinculoStatusClass(vinculo, selectedSupplier.vinculos);
                     const parentLabel = vinculo.parentId ? `Vinculado a ${vinculo.parentId}` : 'Sem vínculo principal';
                     const parentOptions = selectedSupplier.vinculos
-                      .filter((item) => item.tipo === 'Contrato' || item.tipo === 'ARP')
+                      .filter((item) => item.numero !== vinculo.numero)
                       .map((item) => `<option value="${escapeHtml(item.numero)}" ${vinculo.parentId === item.numero ? 'selected' : ''}>${escapeHtml(item.tipo)} ${escapeHtml(item.numero)}</option>`)
                       .join('');
                     return `
-                      <div class="vinculo-card ${statusClass}">
+                      <div class="vinculo-card ${statusClass} ${depth > 0 ? 'is-child' : ''}" style="--vinculo-depth: ${depth};">
                         <div class="vinculo-head">
                           <span class="vinculo-type">${escapeHtml(vinculo.tipo)}</span>
                           <strong>${escapeHtml(vinculo.numero)}</strong>
@@ -6709,15 +7530,15 @@ function renderModuleContent(moduleKey) {
                         </div>
                         ${(vinculo.tipo === 'Aditivo' || vinculo.tipo === 'Apostilamento') ? `
                           <div class="parent-link-row">
-                            <label for="parentSelect-${index}">Vincular a</label>
-                            <select id="parentSelect-${index}" class="parent-select" data-supplier-id="${escapeHtml(selectedSupplier.id)}" data-vinculo-index="${index}" ${selectedSupplier?.isReadonly ? 'disabled' : ''}>
-                              <option value="">Selecione um Contrato ou ARP</option>
+                            <label for="parentSelect-${escapeHtml(vinculo.numero)}">Vincular a</label>
+                            <select id="parentSelect-${escapeHtml(vinculo.numero)}" class="parent-select" data-supplier-id="${escapeHtml(selectedSupplier.id)}" data-vinculo-numero="${escapeHtml(vinculo.numero)}" ${selectedSupplier?.isReadonly ? 'disabled' : ''}>
+                              <option value="">Selecione o instrumento base</option>
                               ${parentOptions}
                             </select>
                           </div>
                         ` : ''}
                         <div class="vinculo-footer">
-                          <span class="status-badge ${statusClass}">${getVinculoStatusLabel(vinculo)}</span>
+                          <span class="status-badge ${statusClass}">${getVinculoStatusLabel(vinculo, selectedSupplier.vinculos)}</span>
                           <small>${escapeHtml(parentLabel)}</small>
                         </div>
                       </div>
@@ -6776,13 +7597,15 @@ function renderModuleContent(moduleKey) {
     container.querySelectorAll('.parent-select').forEach((select) => {
       select.addEventListener('change', (event) => {
         const supplier = fornecedoresData.find((item) => item.id === event.target.dataset.supplierId);
-        const vinculoIndex = Number(event.target.dataset.vinculoIndex);
-        if (supplier?.vinculos?.[vinculoIndex]) {
-          supplier.vinculos[vinculoIndex].parentId = event.target.value || null;
+        const vinculoNumero = String(event.target.dataset.vinculoNumero || '').trim();
+        const targetVinculo = supplier?.vinculos?.find((item) => String(item.numero || '').trim() === vinculoNumero);
+        if (targetVinculo) {
+          targetVinculo.parentId = event.target.value || null;
         }
         renderModuleContent('fornecedores');
       });
     });
+
     return;
   }
 
@@ -6819,9 +7642,10 @@ function renderModuleContent(moduleKey) {
   const prioritiesData = getDemandasByPrioridade(filteredData);
   const urgentByOrgao = getUrgentDemandasByOrgao(filteredData);
   const myResponsibleData = getMyResponsibleDemandas(filteredData);
+  const vigenciaInstrumentos = getPainelVigenciaInstrumentos(10);
   const totalDemandas = filteredData.length;
   const totalValor = groupedByModalidade.reduce((sum, item) => sum + item.valor, 0);
-  const layoutCards = state.painelLayout.order.filter((cardKey) => ['panel-prioridades', 'panel-urgentes', 'panel-responsaveis', 'panel-treemap'].includes(cardKey));
+  const layoutCards = state.painelLayout.order.filter((cardKey) => ['panel-prioridades', 'panel-urgentes', 'panel-responsaveis', 'panel-treemap', 'panel-vigencias'].includes(cardKey));
 
   const renderFilterDropdown = (key, label, options) => {
     const selectedValues = Array.isArray(filtrosPainel[key]) ? filtrosPainel[key] : [];
@@ -6980,6 +7804,39 @@ function renderModuleContent(moduleKey) {
                       </div>
                     `;
                   }).join('') : '<div class="empty-state">Nenhum processo encontrado com os filtros atuais.</div>'}
+                </div>
+              </section>
+            `;
+          }
+
+          if (cardKey === 'panel-vigencias') {
+            return `
+              <section class="chart-card dashboard-card ${getPanelCardSpanClass(cardKey)}" data-panel-card="${cardKey}">
+                <div class="dashboard-card-head">
+                  <div>
+                    <h3>Vigências Próximas do Término</h3>
+                    <p>Instrumentos com até 60 dias para encerrar ou já encerrados.</p>
+                  </div>
+                  ${currentUser?.perfil === 'administrador' ? `
+                    <div class="dashboard-card-actions">
+                      <button type="button" class="dashboard-card-drag-handle" title="Arrastar">↕</button>
+                      <button type="button" data-panel-span-toggle>Expandir</button>
+                    </div>
+                  ` : ''}
+                </div>
+                <div class="vigencia-alert-list">
+                  ${vigenciaInstrumentos.length ? vigenciaInstrumentos.map((row) => `
+                    <div class="vigencia-alert-item ${row.statusClass}">
+                      <div>
+                        <strong>${escapeHtml(row.instrumento)}</strong>
+                        <small>${escapeHtml(row.empresa)} • Proc. ${escapeHtml(row.processo)}</small>
+                      </div>
+                      <div class="vigencia-alert-meta">
+                        <span class="status-badge ${row.statusClass}">${escapeHtml(row.statusLabel)}</span>
+                        <small>Término: ${escapeHtml(formatDateForDisplay(row.dataTermino || '-'))}</small>
+                      </div>
+                    </div>
+                  `).join('') : '<div class="empty-state">Nenhum instrumento próximo ao fim da vigência.</div>'}
                 </div>
               </section>
             `;

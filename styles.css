@@ -761,6 +761,49 @@ input[type="search"] {
   gap: 0.65rem;
 }
 
+.vigencia-alert-list {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.vigencia-alert-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 0.85rem;
+  background: #ffffff;
+  padding: 0.8rem 0.9rem;
+}
+
+.vigencia-alert-item strong {
+  color: var(--text);
+}
+
+.vigencia-alert-item small {
+  color: var(--muted);
+}
+
+.vigencia-alert-item.status-vencendo {
+  border-left: 4px solid #d9a200;
+}
+
+.vigencia-alert-item.status-encerrando-critico {
+  border-left: 4px solid #e67e22;
+}
+
+.vigencia-alert-item.status-encerrado {
+  border-left: 4px solid #d23b3b;
+}
+
+.vigencia-alert-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  align-items: flex-end;
+}
+
 .responsavel-item {
   width: 100%;
   border: 1px solid var(--border);
@@ -1189,6 +1232,7 @@ input[type="search"] {
 }
 
 .vinculo-card {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
@@ -1197,6 +1241,8 @@ input[type="search"] {
   border-radius: 0.95rem;
   background: #ffffff;
   border: 1px solid var(--border);
+  margin-left: calc(var(--vinculo-depth, 0) * 1rem);
+  transition: margin-left 0.2s ease, background 0.2s ease, border-color 0.2s ease;
 }
 
 .vinculo-card.status-vigente {
@@ -1207,8 +1253,26 @@ input[type="search"] {
   border-left: 4px solid #d9a200;
 }
 
+.vinculo-card.status-encerrando-critico {
+  border-left: 4px solid #e67e22;
+}
+
 .vinculo-card.status-encerrado {
   border-left: 4px solid #d23b3b;
+}
+
+.vinculo-card.is-child {
+  background: #fbfdff;
+}
+
+.vinculo-card.is-child::before {
+  content: '';
+  position: absolute;
+  left: calc(-0.55rem - (var(--vinculo-depth, 0) * 1rem));
+  top: 1.2rem;
+  width: 0.55rem;
+  height: 1px;
+  background: var(--border-strong);
 }
 
 .vinculo-head {
@@ -1281,6 +1345,34 @@ input[type="search"] {
   gap: 0.5rem;
 }
 
+.contract-family-list {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.5rem;
+}
+
+.contract-family-item {
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.7rem 0.8rem;
+  border-radius: 0.8rem;
+  background: #f7faff;
+  border: 1px solid var(--border);
+}
+
+.contract-family-item.is-current {
+  background: #eef6ff;
+  border-color: var(--accent);
+}
+
+.contract-family-item strong {
+  color: var(--accent);
+}
+
+.contract-family-item small {
+  color: var(--muted);
+}
+
 .status-badge {
   display: inline-flex;
   padding: 0.35rem 0.6rem;
@@ -1297,6 +1389,11 @@ input[type="search"] {
 .status-badge.status-vencendo {
   background: #fff7dc;
   color: #9b6c00;
+}
+
+.status-badge.status-encerrando-critico {
+  background: #fff1e6;
+  color: #c56a12;
 }
 
 .status-badge.status-encerrado {
@@ -1789,6 +1886,44 @@ input[type="search"] {
 
 .licitacao-details-content {
   max-width: 760px;
+}
+
+.document-preview-content {
+  max-width: min(1100px, 96vw);
+  width: 100%;
+  padding: 1.2rem 1.2rem 1rem;
+}
+
+.document-preview-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.7rem;
+}
+
+.document-preview-head h2 {
+  margin: 0;
+  color: var(--accent);
+  font-size: 1.2rem;
+}
+
+.document-preview-head a {
+  color: var(--accent);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.document-preview-head a:hover {
+  text-decoration: underline;
+}
+
+.document-preview-frame {
+  width: 100%;
+  min-height: min(74vh, 760px);
+  border: 1px solid var(--border);
+  border-radius: 0.8rem;
+  background: #fff;
 }
 
 .protocol-summary-box h2 {
@@ -2974,6 +3109,20 @@ body.col-resize-active * {
 .btn-resolved-toggle.enabled {
   background: #1f8b57;
   color: #fff;
+}
+
+.doc-preview-btn {
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  background: #fff;
+  border-radius: 0.55rem;
+  padding: 0.35rem 0.6rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.doc-preview-btn:hover {
+  background: #eceeff;
 }
 
 .btn-cancel {
