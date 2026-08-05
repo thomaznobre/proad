@@ -1885,7 +1885,10 @@ input[type="search"] {
 }
 
 .licitacao-details-content {
-  max-width: 760px;
+  max-width: min(1560px, 98vw);
+  width: min(1560px, 98vw);
+  overflow: hidden;
+  padding: 1.2rem;
 }
 
 .document-preview-content {
@@ -2219,6 +2222,192 @@ body.col-resize-active * {
 .priority-tag.priority-padrao {
   background: #d3d3d3;
   color: #2d2d2d;
+}
+
+.licitacao-details-shell {
+  display: flex;
+  align-items: stretch;
+  width: 100%;
+  min-height: min(74vh, 760px);
+}
+
+.licitacao-details-main {
+  flex: 0 0 min(760px, calc(100vw - 8rem));
+  max-width: min(760px, calc(100vw - 8rem));
+  width: 100%;
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  padding: 1.2rem;
+  overflow: auto;
+}
+
+.licitacao-history-toggle {
+  align-self: stretch;
+  width: 30px;
+  border-radius: 0.8rem;
+  margin: 0 0.55rem;
+  border: 1px solid var(--border);
+  background: #f7fbff;
+  color: var(--muted);
+  font-size: 1.1rem;
+  font-weight: 700;
+  padding: 0;
+  display: grid;
+  place-items: center;
+}
+
+.licitacao-history-toggle:hover {
+  color: var(--accent);
+  background: #edf5ff;
+}
+
+.licitacao-history-panel {
+  width: 0;
+  opacity: 0;
+  pointer-events: none;
+  overflow: hidden;
+  border: 1px solid transparent;
+  border-radius: 1rem;
+  background: #f8fbff;
+  transition: width 0.24s ease, opacity 0.2s ease, padding 0.24s ease, border-color 0.24s ease;
+  padding: 0;
+}
+
+.licitacao-details-shell.is-expanded .licitacao-history-panel {
+  width: min(760px, calc(100vw - 8rem));
+  opacity: 1;
+  pointer-events: auto;
+  border-color: var(--border);
+  padding: 1rem;
+}
+
+.licitacao-history-head h3 {
+  margin: 0;
+  color: var(--accent);
+}
+
+.licitacao-history-head p {
+  margin: 0.25rem 0 0;
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+
+.licitacao-history-list {
+  margin-top: 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  max-height: min(62vh, 640px);
+  overflow: auto;
+  padding-right: 0.2rem;
+}
+
+.tramite-item {
+  border: 1px solid var(--border);
+  border-radius: 0.8rem;
+  background: #ffffff;
+  padding: 0.75rem;
+}
+
+.tramite-item-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  align-items: baseline;
+}
+
+.tramite-item-head strong {
+  color: var(--text);
+  font-size: 0.9rem;
+}
+
+.tramite-item-head span {
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+
+.tramite-item-responsavel,
+.tramite-item-descricao {
+  margin: 0.4rem 0 0;
+  color: var(--text);
+  font-size: 0.82rem;
+}
+
+.tramite-item-docs {
+  margin-top: 0.55rem;
+  display: flex;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.tramite-doc-chip {
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  padding: 0.28rem 0.58rem;
+  background: #ffffff;
+  color: var(--accent);
+  font-size: 0.74rem;
+  line-height: 1.2;
+}
+
+.tramite-doc-chip:hover {
+  background: #edf5ff;
+}
+
+.tramite-doc-chip.is-disabled {
+  color: var(--muted);
+  border-color: var(--border);
+  background: #f3f6fb;
+}
+
+.tramite-doc-empty,
+.tramite-empty {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+@media (max-width: 1180px) {
+  .licitacao-details-content {
+    max-width: min(900px, 98vw);
+    width: min(900px, 98vw);
+    overflow-y: auto;
+  }
+
+  .licitacao-details-shell {
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .licitacao-details-main {
+    max-width: 100%;
+    flex-basis: auto;
+  }
+
+  .licitacao-history-toggle {
+    align-self: flex-end;
+    width: 2.4rem;
+    height: 2.4rem;
+    margin: 0.6rem 0;
+  }
+
+  .licitacao-history-panel,
+  .licitacao-details-shell.is-expanded .licitacao-history-panel {
+    width: 100%;
+  }
+
+  .licitacao-details-shell:not(.is-expanded) .licitacao-history-panel {
+    max-height: 0;
+    opacity: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    border-width: 0;
+  }
+
+  .licitacao-details-shell.is-expanded .licitacao-history-panel {
+    max-height: 60vh;
+  }
 }
 
 .licitacao-details-grid {

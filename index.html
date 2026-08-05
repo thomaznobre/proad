@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Proad — Sistema de gerenciamento de contratações públicas</title>
-    <link rel="stylesheet" href="styles.css?v=20260720" />
+    <link rel="stylesheet" href="styles.css?v=20260805" />
   </head>
   <body>
     <!-- Tela de Login -->
@@ -135,15 +135,15 @@
           </div>
 
           <div class="form-group">
-            <label for="protocolDocumento">Documento inicial (ofício, memorando, DFD)</label>
-            <input id="protocolDocumento" type="file" accept=".pdf,.doc,.docx,.odt,.txt,.png,.jpg,.jpeg" />
+            <label for="protocolNaoLicitatoria" style="display:flex; align-items:center; gap:0.35rem; font-weight:500; width:max-content;">
+              <input id="protocolNaoLicitatoria" type="checkbox" />
+              <span>Não é uma demanda licitatória</span>
+            </label>
           </div>
 
           <div class="form-group">
-            <label for="protocolNaoLicitatoria" style="display:flex; align-items:center; gap:0.5rem; font-weight:600;">
-              <input id="protocolNaoLicitatoria" type="checkbox" />
-              <span>Não se trata de demanda licitatória (fluxo atípico / termo aditivo / adesão)</span>
-            </label>
+            <label for="protocolDocumento">Documento inicial (ofício, memorando, DFD)</label>
+            <input id="protocolDocumento" type="file" accept=".pdf,.doc,.docx,.odt,.txt,.png,.jpg,.jpeg" />
           </div>
 
           <div class="form-group">

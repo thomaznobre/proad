@@ -19,6 +19,33 @@ const seededDirectoryUsers = [
 ];
 
 let userAccessTreeController = null;
+let licitacaoDetailsHistoryExpanded = false;
+
+const statusCanonicalAliases = {
+  parecer: 'PARECER JURÍDICO',
+  'parecer juridico': 'PARECER JURÍDICO',
+  'publicacoes de extrato': 'PUBLICAÇÃO DO EXTRATO',
+  'publicacao do extrato': 'PUBLICAÇÃO DO EXTRATO',
+  'termo de aquivamento': 'TERMO DE ARQUIVAMENTO',
+  'termo de arquivamento': 'TERMO DE ARQUIVAMENTO'
+};
+
+function normalizeStatusAliasKey(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+}
+
+function canonicalizeStatusName(status) {
+  const raw = String(status || '').trim();
+  if (!raw) {
+    return '';
+  }
+  const aliasKey = normalizeStatusAliasKey(raw);
+  return statusCanonicalAliases[aliasKey] || raw;
+}
 
 function normalizeUserAccessNodeIds(nodeIds) {
   if (!Array.isArray(nodeIds)) {
@@ -40,7 +67,7 @@ function normalizeUserAccessEntries(entries) {
     const secretaria = String(entry?.secretaria || '').trim();
     const setor = String(entry?.setor || '').trim();
     const statuses = Array.isArray(entry?.statuses)
-      ? entry.statuses.map((status) => String(status || '').trim()).filter(Boolean)
+      ? entry.statuses.map((status) => canonicalizeStatusName(status)).filter(Boolean)
       : [];
 
     if (!municipio || !secretaria || !setor || !statuses.length) {
@@ -784,8 +811,8 @@ const defaultStatusCatalog = [
   'APROVAÇÃO',
   'PARECER JURÍDICO',
   'AUTORIZAÇÃO',
-  'PUBLICAÇÕES DE EXTRATO',
-  'TERMO DE AQUIVAMENTO',
+  'PUBLICAÇÃO DO EXTRATO',
+  'TERMO DE ARQUIVAMENTO',
   'OFÍCIO / MEMORANDO',
   'OFÍCIO AO FORNECEDOR',
   'OFÍCIO AO GESTOR',
@@ -794,16 +821,13 @@ const defaultStatusCatalog = [
   'PESQUISA DE MERCADOLÓGICA (ATESTANDO VANTAJOSIDADE FINANCEIRA)',
   'MINUTA DE CONTRATO (IPSIS LITTERIS À MINUTA DA ARP)',
   'DOTAÇÃO',
-  'PARECER',
   'CONTRATO (ASSINANDO)',
-  'PUBLICAÇÃO DO EXTRATO',
   'SANEAMENTO',
-  'TERMO DE ARQUIVAMENTO',
   'TCE',
   'CONCLUÍDO'
 ];
 
-const defaultRitosTradicionais = ['DFD', 'ETP', 'TR', 'APROVAÇÃO', 'PARECER JURÍDICO', 'AUTORIZAÇÃO', 'PUBLICAÇÕES DE EXTRATO', 'TERMO DE AQUIVAMENTO', 'TCE', 'CONCLUÍDO'];
+const defaultRitosTradicionais = ['DFD', 'ETP', 'TR', 'APROVAÇÃO', 'PARECER JURÍDICO', 'AUTORIZAÇÃO', 'PUBLICAÇÃO DO EXTRATO', 'TERMO DE ARQUIVAMENTO', 'TCE', 'CONCLUÍDO'];
 const defaultRitosAtipicos = [
   'OFÍCIO / MEMORANDO',
   'APROVAÇÃO',
@@ -814,7 +838,7 @@ const defaultRitosAtipicos = [
   'PESQUISA DE MERCADOLÓGICA (ATESTANDO VANTAJOSIDADE FINANCEIRA)',
   'MINUTA DE CONTRATO (IPSIS LITTERIS À MINUTA DA ARP)',
   'DOTAÇÃO',
-  'PARECER',
+  'PARECER JURÍDICO',
   'AUTORIZAÇÃO',
   'CONTRATO (ASSINANDO)',
   'PUBLICAÇÃO DO EXTRATO',
@@ -834,8 +858,8 @@ const defaultRitosPorModalidade = {
   'Inexigibilidade - Art. 74, V': [...defaultRitosAtipicos],
   'Inexigibilidade': [...defaultRitosAtipicos],
   'Pregão-e': [...defaultRitosTradicionais],
-  'Dispensa-e': ['DFD', 'TR', 'APROVAÇÃO', 'PARECER JURÍDICO', 'AUTORIZAÇÃO', 'PUBLICAÇÕES DE EXTRATO', 'TERMO DE AQUIVAMENTO', 'TCE', 'CONCLUÍDO'],
-  'Dispensa': ['DFD', 'TR', 'APROVAÇÃO', 'PARECER JURÍDICO', 'AUTORIZAÇÃO', 'PUBLICAÇÕES DE EXTRATO', 'TERMO DE AQUIVAMENTO', 'TCE', 'CONCLUÍDO'],
+  'Dispensa-e': ['DFD', 'TR', 'APROVAÇÃO', 'PARECER JURÍDICO', 'AUTORIZAÇÃO', 'PUBLICAÇÃO DO EXTRATO', 'TERMO DE ARQUIVAMENTO', 'TCE', 'CONCLUÍDO'],
+  'Dispensa': ['DFD', 'TR', 'APROVAÇÃO', 'PARECER JURÍDICO', 'AUTORIZAÇÃO', 'PUBLICAÇÃO DO EXTRATO', 'TERMO DE ARQUIVAMENTO', 'TCE', 'CONCLUÍDO'],
   'Concorrência': [...defaultRitosTradicionais],
   'Diálogo Competitivo': [...defaultRitosTradicionais],
   'Chamada Pública': [...defaultRitosTradicionais]
@@ -1966,20 +1990,20 @@ function normalizeLicitacoesColumnWidths(widths) {
 
 function normalizeStatusCatalog(statuses) {
   const incoming = Array.isArray(statuses)
-    ? statuses.map((status) => String(status || '').trim()).filter(Boolean)
+    ? statuses.map((status) => canonicalizeStatusName(status)).filter(Boolean)
     : [];
 
-  const normalized = [...defaultStatusCatalog, ...incoming];
+  const normalized = [...defaultStatusCatalog, ...incoming].map((status) => canonicalizeStatusName(status));
   const unique = [];
   const seen = new Set();
 
   normalized.forEach((status) => {
-    const key = String(status || '').trim().toLowerCase();
+    const key = normalizeStatusAliasKey(status);
     if (!key || seen.has(key)) {
       return;
     }
     seen.add(key);
-    unique.push(String(status || '').trim());
+    unique.push(canonicalizeStatusName(status));
   });
 
   return unique.length ? unique : [...defaultStatusCatalog];
@@ -2008,14 +2032,26 @@ function normalizeModalidades(modalidades) {
 
 function normalizeRitosPorModalidade(ritos, statusCatalog, modalidadesList = defaultModalidades) {
   const catalog = normalizeStatusCatalog(statusCatalog);
+  const catalogKeys = new Set(catalog.map((status) => normalizeStatusAliasKey(status)));
   const modalidades = normalizeModalidades(modalidadesList);
   const next = {};
 
   modalidades.forEach((modalidade) => {
     const incoming = Array.isArray(ritos?.[modalidade]) ? ritos[modalidade] : (defaultRitosPorModalidade[modalidade] || catalog);
-    next[modalidade] = incoming
-      .map((status) => String(status || '').trim())
-      .filter((status, index, array) => status && array.indexOf(status) === index && catalog.includes(status));
+    const deduped = [];
+    const seen = new Set();
+
+    incoming.forEach((status) => {
+      const canonical = canonicalizeStatusName(status);
+      const key = normalizeStatusAliasKey(canonical);
+      if (!key || seen.has(key) || !catalogKeys.has(key)) {
+        return;
+      }
+      seen.add(key);
+      deduped.push(canonical);
+    });
+
+    next[modalidade] = deduped;
   });
 
   return next;
@@ -2450,7 +2486,7 @@ function addStatusToCatalog() {
   }
 
   const input = document.getElementById('newStatusCatalogInput');
-  const value = String(input?.value || '').trim();
+  const value = canonicalizeStatusName(input?.value);
   if (!value) {
     return;
   }
@@ -2476,7 +2512,7 @@ function removeStatusFromCatalog(statusToRemove) {
     return;
   }
 
-  const status = String(statusToRemove || '').trim();
+  const status = canonicalizeStatusName(statusToRemove);
   if (!status) {
     return;
   }
@@ -2509,8 +2545,8 @@ function renameStatusInCatalog(oldStatus, newStatusRaw) {
     return;
   }
 
-  const from = String(oldStatus || '').trim();
-  const to = String(newStatusRaw || '').trim();
+  const from = canonicalizeStatusName(oldStatus);
+  const to = canonicalizeStatusName(newStatusRaw);
   if (!from || !to || from === to) {
     return;
   }
@@ -2579,8 +2615,8 @@ function moveStatusCatalogItem(status, targetStatus) {
     return;
   }
 
-  const source = String(status || '').trim();
-  const target = String(targetStatus || '').trim();
+  const source = canonicalizeStatusName(status);
+  const target = canonicalizeStatusName(targetStatus);
   if (!source || !target || source === target) {
     return;
   }
@@ -3815,21 +3851,26 @@ function loadState() {
     const parsed = JSON.parse(saved);
     const municipalStructure = normalizeMunicipalStructure(parsed.municipalStructure);
     const derivedSetores = getAllSetoresFromStructureData(municipalStructure);
+    const modalidades = normalizeModalidades(parsed.modalidades);
+    const statusCatalog = normalizeStatusCatalog(parsed.statusCatalog);
+    const licitacoesDemandas = Array.isArray(parsed.licitacoesDemandas)
+      ? parsed.licitacoesDemandas.map((item) => normalizeLicitacaoDemandRecord(item))
+      : [];
     const nextState = {
       processes: Array.isArray(parsed.processes)
         ? parsed.processes.map((process) => ({ ...process, documents: Array.isArray(process.documents) && process.documents.length ? process.documents : buildDocuments(ritesConfig[process.riteKey], process.id) }))
         : [],
-      licitacoesDemandas: Array.isArray(parsed.licitacoesDemandas) ? parsed.licitacoesDemandas : [],
+      licitacoesDemandas,
       municipalStructure,
       setoresDestino: derivedSetores.length ? derivedSetores : normalizeSetoresDestino(parsed.setoresDestino),
       protocoloSequencial: Number.isInteger(parsed.protocoloSequencial) && parsed.protocoloSequencial > 0
         ? parsed.protocoloSequencial
-        : getDerivedProtocolSequence(parsed.licitacoesDemandas),
+        : getDerivedProtocolSequence(licitacoesDemandas),
       licitacoesColumnWidths: normalizeLicitacoesColumnWidths(parsed.licitacoesColumnWidths),
-      modalidades: normalizeModalidades(parsed.modalidades),
-      statusCatalog: normalizeStatusCatalog(parsed.statusCatalog),
-      ritosPorModalidade: normalizeRitosPorModalidade(parsed.ritosPorModalidade, parsed.statusCatalog, parsed.modalidades),
-      painelFilters: normalizePainelFilters(parsed.painelFilters, parsed.licitacoesDemandas, parsed.modalidades),
+      modalidades,
+      statusCatalog,
+      ritosPorModalidade: normalizeRitosPorModalidade(parsed.ritosPorModalidade, statusCatalog, modalidades),
+      painelFilters: normalizePainelFilters(parsed.painelFilters, licitacoesDemandas, modalidades),
       painelLayout: normalizePainelLayout(parsed.painelLayout),
       contratosArps: Array.isArray(parsed.contratosArps) ? parsed.contratosArps : [],
       alerts: normalizeAlerts(parsed.alerts),
@@ -4185,6 +4226,7 @@ function closeProtocolSummaryModal() {
 
 function closeLicitacaoDetailsModal() {
   const modal = document.getElementById('licitacaoDetailsModal');
+  licitacaoDetailsHistoryExpanded = false;
   if (modal) {
     modal.classList.remove('active');
   }
@@ -4499,6 +4541,144 @@ function getDemandCreationDate(demand) {
   return new Date();
 }
 
+function formatDateTimePtBr(value) {
+  const parsed = value ? new Date(value) : null;
+  if (!parsed || Number.isNaN(parsed.getTime())) {
+    return '-';
+  }
+  return parsed.toLocaleString('pt-BR');
+}
+
+function buildDemandDocumentEntries(demand) {
+  const docs = [];
+  const initialName = String(demand?.documentoInicialNome || '').trim();
+  const initialUrl = String(demand?.documentoInicialDataUrl || '').trim();
+  const anexoName = String(demand?.documentoAnexoNome || '').trim();
+  const anexoUrl = String(demand?.documentoAnexoDataUrl || '').trim();
+  const virtualUrl = String(demand?.documentoVirtualLink || '').trim();
+
+  if (initialName || initialUrl) {
+    docs.push({
+      nome: initialName || 'Documento inicial',
+      url: initialUrl,
+      tipo: 'Documento inicial'
+    });
+  }
+
+  if (anexoName || anexoUrl) {
+    docs.push({
+      nome: anexoName || 'Documento anexo',
+      url: anexoUrl,
+      tipo: 'Anexo'
+    });
+  }
+
+  if (virtualUrl) {
+    docs.push({
+      nome: 'Documento virtual',
+      url: virtualUrl,
+      tipo: 'Link'
+    });
+  }
+
+  const unique = new Map();
+  docs.forEach((doc) => {
+    const key = `${String(doc.nome || '').trim().toLowerCase()}::${String(doc.url || '').trim()}`;
+    if (!unique.has(key)) {
+      unique.set(key, {
+        nome: String(doc.nome || 'Documento').trim() || 'Documento',
+        url: String(doc.url || '').trim(),
+        tipo: String(doc.tipo || 'Documento').trim() || 'Documento'
+      });
+    }
+  });
+
+  return Array.from(unique.values());
+}
+
+function normalizeDemandTramiteRecord(record, fallbackDemand = null) {
+  const fallbackStatus = canonicalizeStatusName(fallbackDemand?.status) || 'DFD';
+  const dataHoraIsoRaw = String(record?.dataHoraIso || '').trim();
+  const dataHoraIso = dataHoraIsoRaw && !Number.isNaN(new Date(dataHoraIsoRaw).getTime())
+    ? dataHoraIsoRaw
+    : new Date().toISOString();
+  const status = canonicalizeStatusName(record?.status) || fallbackStatus;
+  const responsavel = String(record?.responsavel || fallbackDemand?.responsavel || fallbackDemand?.protocolante || '-').trim() || '-';
+  const descricao = String(record?.descricao || '').trim() || `Trâmite registrado na etapa ${status}.`;
+  const documentos = Array.isArray(record?.documentos)
+    ? record.documentos
+      .map((doc) => ({
+        nome: String(doc?.nome || 'Documento').trim() || 'Documento',
+        url: String(doc?.url || '').trim(),
+        tipo: String(doc?.tipo || 'Documento').trim() || 'Documento'
+      }))
+      .filter((doc) => doc.nome || doc.url)
+    : [];
+
+  return {
+    id: String(record?.id || crypto.randomUUID()),
+    dataHoraIso,
+    status,
+    responsavel,
+    descricao,
+    documentos
+  };
+}
+
+function ensureDemandTramites(demand) {
+  const existing = Array.isArray(demand?.tramites)
+    ? demand.tramites
+    : (Array.isArray(demand?.historicoTramites) ? demand.historicoTramites : []);
+
+  if (existing.length) {
+    return existing
+      .map((record) => normalizeDemandTramiteRecord(record, demand))
+      .sort((a, b) => new Date(a.dataHoraIso).getTime() - new Date(b.dataHoraIso).getTime());
+  }
+
+  const createdAtIso = String(demand?.createdAtIso || '').trim() || new Date().toISOString();
+  const protocoloResponsavel = String(demand?.protocolante || demand?.responsavel || '-').trim() || '-';
+  return [normalizeDemandTramiteRecord({
+    id: `initial-${String(demand?.id || '').trim() || crypto.randomUUID()}`,
+    dataHoraIso: createdAtIso,
+    status: canonicalizeStatusName(demand?.status) || 'DFD',
+    responsavel: protocoloResponsavel,
+    descricao: 'Demanda protocolada e registrada no módulo de licitações.',
+    documentos: buildDemandDocumentEntries(demand)
+  }, demand)];
+}
+
+function appendDemandTramiteEntry(demand, entry) {
+  const current = ensureDemandTramites(demand);
+  const nextRecord = normalizeDemandTramiteRecord({
+    id: crypto.randomUUID(),
+    dataHoraIso: new Date().toISOString(),
+    status: entry?.status || demand?.status,
+    responsavel: entry?.responsavel || currentUser?.nome || demand?.responsavel || '-',
+    descricao: entry?.descricao || 'Trâmite registrado.',
+    documentos: Array.isArray(entry?.documentos) ? entry.documentos : buildDemandDocumentEntries(demand)
+  }, demand);
+
+  return {
+    ...demand,
+    tramites: [...current, nextRecord]
+  };
+}
+
+function normalizeLicitacaoDemandRecord(demand) {
+  const source = demand && typeof demand === 'object' ? demand : {};
+  const canonicalStatus = canonicalizeStatusName(source.status) || 'DFD';
+  const normalized = {
+    ...source,
+    status: canonicalStatus
+  };
+
+  return {
+    ...normalized,
+    tramites: ensureDemandTramites(normalized)
+  };
+}
+
 function formatElapsedFromIso(isoDate) {
   const base = isoDate ? new Date(isoDate) : new Date();
   const diffMs = Math.max(0, Date.now() - base.getTime());
@@ -4595,7 +4775,7 @@ function tramitarLicitacaoDemandFromModal(demandId) {
   const previousResponsavel = String(demand.responsavel || '').trim();
   const numeroOrdem = modalidadeAtual && modalidadeAtual !== '-' ? getNextNumeroOrdemByModalidade(modalidadeAtual, demand.id) : '-';
 
-  demandas[index] = {
+  const updatedDemand = appendDemandTramiteEntry({
     ...demand,
     modalidade: modalidadeAtual,
     numeroOrdem,
@@ -4604,7 +4784,13 @@ function tramitarLicitacaoDemandFromModal(demandId) {
     setorResponsavel: nextSetorResponsavel,
     responsavel: nextResponsavel,
     responsavelDesignadoAt: new Date().toISOString()
-  };
+  }, {
+    status: nextStatus,
+    responsavel: currentUser?.nome || nextResponsavel,
+    descricao: `Processo tramitado de ${String(demand.status || 'DFD')} para ${nextStatus}.`
+  });
+
+  demandas[index] = updatedDemand;
 
   state.licitacoesDemandas = demandas;
   persistState();
@@ -4685,7 +4871,15 @@ function saveLicitacaoDemandFromModal(demandId) {
     pushDemandMentionAlert(updated, nextResponsavel);
   }
 
-  list[index] = updated;
+  const withHistory = (current.status || 'DFD') !== normalizedStatus
+    ? appendDemandTramiteEntry(updated, {
+      status: normalizedStatus,
+      responsavel: currentUser?.nome || updated.responsavel,
+      descricao: `Status atualizado manualmente de ${String(current.status || 'DFD')} para ${normalizedStatus}.`
+    })
+    : updated;
+
+  list[index] = withHistory;
   state.licitacoesDemandas = list;
   persistState();
   closeLicitacaoDetailsModal();
@@ -4810,103 +5004,187 @@ function openLicitacaoDetailsModal(demand) {
     return;
   }
 
-  const createdDate = getDemandCreationDate(demand);
+  const normalizedDemand = normalizeLicitacaoDemandRecord(demand);
+  const createdDate = getDemandCreationDate(normalizedDemand);
   const openedElapsed = formatElapsedFromIso(createdDate.toISOString());
-  const createdAtText = demand.createdAt || createdDate.toLocaleDateString('pt-BR');
-  const prioridade = demand.prioridade || 'Média';
+  const createdAtText = normalizedDemand.createdAt || createdDate.toLocaleDateString('pt-BR');
+  const prioridade = normalizedDemand.prioridade || 'Média';
   const prioridadeClass = getPrioridadeClass(prioridade);
   const isAdmin = currentUser?.perfil === 'administrador';
   const canFullEdit = isAdmin || isSaneador();
-  const isConcluido = String(demand?.status || '').trim().toUpperCase() === 'CONCLUÍDO';
-  const saneadorUnlocked = Boolean(demand?.allowSaneadorEditConcluido);
+  const isConcluido = String(normalizedDemand?.status || '').trim().toUpperCase() === 'CONCLUÍDO';
+  const saneadorUnlocked = Boolean(normalizedDemand?.allowSaneadorEditConcluido);
   const canEditConcluido = isAdmin || !isConcluido || saneadorUnlocked;
-  const isResponsible = String(currentUser?.nome || '').trim().toLowerCase() === String(demand?.responsavel || '').trim().toLowerCase();
+  const isResponsible = String(currentUser?.nome || '').trim().toLowerCase() === String(normalizedDemand?.responsavel || '').trim().toLowerCase();
   const canTramitar = (canFullEdit || isResponsible) && canEditConcluido;
   const canEditFlow = (canFullEdit || isResponsible) && canEditConcluido;
   const createdAtInputValue = toDateInputValue(createdDate);
   const readonlyAttr = (canFullEdit && canEditConcluido) ? '' : 'disabled';
   const flowReadonlyAttr = canEditFlow ? '' : 'disabled';
-  const setorResponsavel = demand.setorResponsavel || demand.setorDestino || defaultSetoresDestino[0] || '-';
+  const setorResponsavel = normalizedDemand.setorResponsavel || normalizedDemand.setorDestino || defaultSetoresDestino[0] || '-';
   const usuariosBySetor = getUsuariosVinculadosAoSetor(setorResponsavel);
   const responsavelOptions = usuariosBySetor.length ? usuariosBySetor : getAllUsers();
-  if (demand.responsavel && !responsavelOptions.some((user) => user.nome === demand.responsavel)) {
-    responsavelOptions.unshift({ id: 'current-demand-responsavel', nome: demand.responsavel });
+  if (normalizedDemand.responsavel && !responsavelOptions.some((user) => user.nome === normalizedDemand.responsavel)) {
+    responsavelOptions.unshift({ id: 'current-demand-responsavel', nome: normalizedDemand.responsavel });
   }
-  const responsavelDesignadoElapsed = formatElapsedFromIso(demand.responsavelDesignadoAt || demand.createdAtIso);
+  const responsavelDesignadoElapsed = formatElapsedFromIso(normalizedDemand.responsavelDesignadoAt || normalizedDemand.createdAtIso);
   const prioridadeOptions = ['Urgente', 'Alta', 'Média', 'Baixa', 'Sem prioridade'];
   const modalidades = normalizeModalidades(state.modalidades);
-  const modalidadeAtual = demand.modalidade && demand.modalidade !== '-' ? demand.modalidade : (modalidades[0] || defaultModalidades[0]);
+  const modalidadeAtual = normalizedDemand.modalidade && normalizedDemand.modalidade !== '-' ? normalizedDemand.modalidade : (modalidades[0] || defaultModalidades[0]);
   const statusOptionsByModalidade = getStatusOptionsForModalidade(modalidadeAtual);
-  const statusAtual = statusOptionsByModalidade.includes(demand.status) ? demand.status : (statusOptionsByModalidade[0] || 'DFD');
-  const numeroOrdemAtual = String(demand.numeroOrdem || '').trim() && String(demand.numeroOrdem || '').trim() !== '-'
-    ? String(demand.numeroOrdem || '').trim()
-    : getNextNumeroOrdemByModalidade(modalidadeAtual, demand.id);
+  const statusAtual = statusOptionsByModalidade.includes(normalizedDemand.status) ? normalizedDemand.status : (statusOptionsByModalidade[0] || 'DFD');
+  const numeroOrdemAtual = String(normalizedDemand.numeroOrdem || '').trim() && String(normalizedDemand.numeroOrdem || '').trim() !== '-'
+    ? String(normalizedDemand.numeroOrdem || '').trim()
+    : getNextNumeroOrdemByModalidade(modalidadeAtual, normalizedDemand.id);
   const availableSetores = getAllSetoresFromStructureData(getMunicipalStructure());
   const setorOptions = availableSetores.length ? availableSetores : normalizeSetoresDestino(state.setoresDestino);
+  const tramites = ensureDemandTramites(normalizedDemand)
+    .slice()
+    .sort((a, b) => new Date(b.dataHoraIso).getTime() - new Date(a.dataHoraIso).getTime());
+
+  const tramitesHtml = tramites.length
+    ? tramites.map((item) => {
+      const docs = Array.isArray(item.documentos) ? item.documentos : [];
+      return `
+        <article class="tramite-item">
+          <header class="tramite-item-head">
+            <strong>${escapeHtml(item.status || '-')}</strong>
+            <span>${escapeHtml(formatDateTimePtBr(item.dataHoraIso))}</span>
+          </header>
+          <p class="tramite-item-responsavel">Responsável: ${escapeHtml(item.responsavel || '-')}</p>
+          <p class="tramite-item-descricao">${escapeHtml(item.descricao || '-')}</p>
+          <div class="tramite-item-docs">
+            ${docs.length
+              ? docs.map((doc) => {
+                const hasUrl = Boolean(String(doc.url || '').trim());
+                if (!hasUrl) {
+                  return `<span class="tramite-doc-chip is-disabled" title="Documento sem visualização">📎 ${escapeHtml(doc.nome || 'Documento')}</span>`;
+                }
+                return `<button class="tramite-doc-chip" type="button" data-tramite-doc-url="${escapeHtml(doc.url)}" aria-label="Abrir documento ${escapeHtml(doc.nome || 'Documento')}" title="Abrir ${escapeHtml(doc.nome || 'Documento')}">📎 ${escapeHtml(doc.nome || 'Documento')}</button>`;
+              }).join('')
+              : '<span class="tramite-doc-empty">Sem anexos nesta etapa.</span>'}
+          </div>
+        </article>
+      `;
+    }).join('')
+    : '<p class="tramite-empty">Nenhum trâmite registrado.</p>';
 
   body.innerHTML = `
-    <div class="licitacao-details-head">
-      <div>
-        <p class="eyebrow">Detalhes do processo</p>
-        <h2>${escapeHtml(demand.processoNumero)}</h2>
-      </div>
-      <div class="priority-picker">
-        ${isAdmin ? `
-          <input id="editDemandPrioridade" type="hidden" value="${escapeHtml(prioridade)}" />
-          <button id="priorityTagButton" class="priority-tag priority-tag-button ${prioridadeClass}" type="button">${escapeHtml(prioridade)}</button>
-          <div id="priorityTagMenu" class="priority-menu" hidden>
-            ${prioridadeOptions.map((item) => `<button type="button" data-priority-value="${escapeHtml(item)}">${escapeHtml(item)}</button>`).join('')}
+    <div id="licitacaoDetailsShell" class="licitacao-details-shell ${licitacaoDetailsHistoryExpanded ? 'is-expanded' : ''}">
+      <section class="licitacao-details-main">
+        <div class="licitacao-details-head">
+          <div>
+            <p class="eyebrow">Detalhes do processo</p>
+            <h2>${escapeHtml(normalizedDemand.processoNumero)}</h2>
           </div>
-        ` : `<span class="priority-tag ${prioridadeClass}">${escapeHtml(prioridade)}</span>`}
-      </div>
-    </div>
+          <div class="priority-picker">
+            ${isAdmin ? `
+              <input id="editDemandPrioridade" type="hidden" value="${escapeHtml(prioridade)}" />
+              <button id="priorityTagButton" class="priority-tag priority-tag-button ${prioridadeClass}" type="button">${escapeHtml(prioridade)}</button>
+              <div id="priorityTagMenu" class="priority-menu" hidden>
+                ${prioridadeOptions.map((item) => `<button type="button" data-priority-value="${escapeHtml(item)}">${escapeHtml(item)}</button>`).join('')}
+              </div>
+            ` : `<span class="priority-tag ${prioridadeClass}">${escapeHtml(prioridade)}</span>`}
+          </div>
+        </div>
 
-    <div class="licitacao-details-grid">
-      <div class="detail-cell"><span>Processo n°</span><input id="editDemandProcessoNumero" type="text" value="${escapeHtml(demand.processoNumero || '-')}" ${readonlyAttr} /></div>
-      <div class="detail-cell"><span>Secretaria</span><input id="editDemandSecretaria" type="text" value="${escapeHtml(demand.secretaria || '-')}" ${readonlyAttr} /></div>
-      <div class="detail-cell detail-cell-full"><span>Objeto</span><textarea id="editDemandObjeto" rows="3" ${readonlyAttr}>${escapeHtml(demand.objeto || '-')}</textarea></div>
-      <div class="detail-cell"><span>Responsável <small class="inline-muted">• designado há ${escapeHtml(responsavelDesignadoElapsed)}</small></span>
-        <select id="editDemandResponsavel" ${readonlyAttr}>
-          ${responsavelOptions.length
-            ? responsavelOptions.map((user) => `<option value="${escapeHtml(user.nome)}" ${String(demand.responsavel || '') === String(user.nome) ? 'selected' : ''}>${escapeHtml(user.nome)}</option>`).join('')
-            : '<option value="-">Nenhum usuário vinculado ao setor</option>'}
-        </select>
-      </div>
-      <div class="detail-cell"><span>Setor responsável</span>
-        <select id="editDemandSetorResponsavel" ${readonlyAttr}>
-          ${setorOptions.map((setor) => `<option value="${escapeHtml(setor)}" ${setor === setorResponsavel ? 'selected' : ''}>${escapeHtml(setor)}</option>`).join('')}
-        </select>
-      </div>
-      <div class="detail-cell detail-cell-full"><span>Status</span>
-        <select id="editDemandStatus" ${readonlyAttr}>
-          ${statusOptionsByModalidade.map((status) => `<option value="${escapeHtml(status)}" ${status === statusAtual ? 'selected' : ''}>${escapeHtml(status)}</option>`).join('')}
-        </select>
-      </div>
-      <div class="detail-cell"><span>Modalidade</span>
-        <select id="editDemandModalidade" ${flowReadonlyAttr}>
-          <option value="-" ${modalidadeAtual === '-' ? 'selected' : ''}>Selecionar no ETP</option>
-          ${modalidades.map((modalidade) => `<option value="${escapeHtml(modalidade)}" ${modalidade === modalidadeAtual ? 'selected' : ''}>${escapeHtml(modalidade)}</option>`).join('')}
-        </select>
-      </div>
-      <div class="detail-cell"><span>N° de ordem</span><input id="editDemandNumeroOrdem" type="text" value="${escapeHtml(numeroOrdemAtual)}" disabled /></div>
-      <div class="detail-cell"><span>Valor estimado</span><input id="editDemandValorEstimado" type="text" value="${escapeHtml(demand.valorEstimado || '')}" placeholder="R$ 0,00" ${readonlyAttr} /></div>
-      <div class="detail-cell"><span>Valor contratado</span><input id="editDemandValorContratado" type="text" value="${escapeHtml(demand.valorContratado || '')}" placeholder="R$ 0,00" ${readonlyAttr} /></div>
-      <div class="detail-cell"><span>Data de criação</span><input id="editDemandCreatedAt" type="date" value="${escapeHtml(createdAtInputValue)}" ${readonlyAttr} /></div>
-    </div>
+        <div class="licitacao-details-grid">
+          <div class="detail-cell"><span>Processo n°</span><input id="editDemandProcessoNumero" type="text" value="${escapeHtml(normalizedDemand.processoNumero || '-')}" ${readonlyAttr} /></div>
+          <div class="detail-cell"><span>Secretaria</span><input id="editDemandSecretaria" type="text" value="${escapeHtml(normalizedDemand.secretaria || '-')}" ${readonlyAttr} /></div>
+          <div class="detail-cell detail-cell-full"><span>Objeto</span><textarea id="editDemandObjeto" rows="3" ${readonlyAttr}>${escapeHtml(normalizedDemand.objeto || '-')}</textarea></div>
+          <div class="detail-cell"><span>Responsável <small class="inline-muted">• designado há ${escapeHtml(responsavelDesignadoElapsed)}</small></span>
+            <select id="editDemandResponsavel" ${readonlyAttr}>
+              ${responsavelOptions.length
+                ? responsavelOptions.map((user) => `<option value="${escapeHtml(user.nome)}" ${String(normalizedDemand.responsavel || '') === String(user.nome) ? 'selected' : ''}>${escapeHtml(user.nome)}</option>`).join('')
+                : '<option value="-">Nenhum usuário vinculado ao setor</option>'}
+            </select>
+          </div>
+          <div class="detail-cell"><span>Setor responsável</span>
+            <select id="editDemandSetorResponsavel" ${readonlyAttr}>
+              ${setorOptions.map((setor) => `<option value="${escapeHtml(setor)}" ${setor === setorResponsavel ? 'selected' : ''}>${escapeHtml(setor)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="detail-cell detail-cell-full"><span>Status</span>
+            <select id="editDemandStatus" ${readonlyAttr}>
+              ${statusOptionsByModalidade.map((status) => `<option value="${escapeHtml(status)}" ${status === statusAtual ? 'selected' : ''}>${escapeHtml(status)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="detail-cell"><span>Modalidade</span>
+            <select id="editDemandModalidade" ${flowReadonlyAttr}>
+              <option value="-" ${modalidadeAtual === '-' ? 'selected' : ''}>Selecionar no ETP</option>
+              ${modalidades.map((modalidade) => `<option value="${escapeHtml(modalidade)}" ${modalidade === modalidadeAtual ? 'selected' : ''}>${escapeHtml(modalidade)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="detail-cell"><span>N° de ordem</span><input id="editDemandNumeroOrdem" type="text" value="${escapeHtml(numeroOrdemAtual)}" disabled /></div>
+          <div class="detail-cell"><span>Valor estimado</span><input id="editDemandValorEstimado" type="text" value="${escapeHtml(normalizedDemand.valorEstimado || '')}" placeholder="R$ 0,00" ${readonlyAttr} /></div>
+          <div class="detail-cell"><span>Valor contratado</span><input id="editDemandValorContratado" type="text" value="${escapeHtml(normalizedDemand.valorContratado || '')}" placeholder="R$ 0,00" ${readonlyAttr} /></div>
+          <div class="detail-cell"><span>Data de criação</span><input id="editDemandCreatedAt" type="date" value="${escapeHtml(createdAtInputValue)}" ${readonlyAttr} /></div>
+        </div>
 
-    <div class="licitacao-details-foot">
-      <p><strong>Criado em:</strong> ${escapeHtml(createdAtText)}</p>
-      <p><strong>Aberto há:</strong> ${escapeHtml(openedElapsed)}</p>
-    </div>
-    <div class="licitacao-details-actions">
-      ${canTramitar ? '<button id="tramitarDemandBtn" type="button">Tramitar</button>' : ''}
-      ${(isAdmin || (canFullEdit && canEditConcluido)) ? '<button id="saveDemandChangesBtn" type="button">Salvar alterações</button>' : ''}
-      ${isAdmin && isConcluido ? `<button id="toggleConcluidoAdjustBtn" class="btn-resolved-toggle ${saneadorUnlocked ? 'enabled' : ''}" type="button">${saneadorUnlocked ? 'Ajuste saneamento: permitido' : 'Permitir ajuste saneamento'}</button>` : ''}
+        <div class="licitacao-details-foot">
+          <p><strong>Criado em:</strong> ${escapeHtml(createdAtText)}</p>
+          <p><strong>Aberto há:</strong> ${escapeHtml(openedElapsed)}</p>
+        </div>
+        <div class="licitacao-details-actions">
+          ${canTramitar ? '<button id="tramitarDemandBtn" type="button">Tramitar</button>' : ''}
+          ${(isAdmin || (canFullEdit && canEditConcluido)) ? '<button id="saveDemandChangesBtn" type="button">Salvar alterações</button>' : ''}
+          ${isAdmin && isConcluido ? `<button id="toggleConcluidoAdjustBtn" class="btn-resolved-toggle ${saneadorUnlocked ? 'enabled' : ''}" type="button">${saneadorUnlocked ? 'Ajuste saneamento: permitido' : 'Permitir ajuste saneamento'}</button>` : ''}
+        </div>
+      </section>
+
+      <button id="licitacaoHistoryToggleBtn" class="licitacao-history-toggle" type="button" aria-label="Expandir ou recolher histórico de trâmites" aria-expanded="${licitacaoDetailsHistoryExpanded ? 'true' : 'false'}" title="Histórico de trâmites">
+        ${licitacaoDetailsHistoryExpanded ? '›' : '‹'}
+      </button>
+
+      <aside class="licitacao-history-panel" aria-hidden="${licitacaoDetailsHistoryExpanded ? 'false' : 'true'}">
+        <div class="licitacao-history-head">
+          <h3>Histórico de trâmites</h3>
+          <p>Etapas, responsáveis e anexos.</p>
+        </div>
+        <div class="licitacao-history-list">
+          ${tramitesHtml}
+        </div>
+      </aside>
     </div>
   `;
 
+  const shell = document.getElementById('licitacaoDetailsShell');
+  const historyToggle = document.getElementById('licitacaoHistoryToggleBtn');
+  const historyPanel = body.querySelector('.licitacao-history-panel');
+  const syncHistoryDrawerState = () => {
+    if (!shell || !historyToggle) {
+      return;
+    }
+
+    shell.classList.toggle('is-expanded', licitacaoDetailsHistoryExpanded);
+    historyToggle.setAttribute('aria-expanded', licitacaoDetailsHistoryExpanded ? 'true' : 'false');
+    if (historyPanel) {
+      historyPanel.setAttribute('aria-hidden', licitacaoDetailsHistoryExpanded ? 'false' : 'true');
+    }
+    historyToggle.textContent = licitacaoDetailsHistoryExpanded ? '›' : '‹';
+  };
+
+  if (historyToggle) {
+    historyToggle.addEventListener('click', () => {
+      licitacaoDetailsHistoryExpanded = !licitacaoDetailsHistoryExpanded;
+      syncHistoryDrawerState();
+    });
+  }
+
+  body.querySelectorAll('[data-tramite-doc-url]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const source = String(button.getAttribute('data-tramite-doc-url') || '').trim();
+      if (!source) {
+        return;
+      }
+      openDocumentPreviewModal(source);
+    });
+  });
+
+  syncHistoryDrawerState();
+
   if (canEditFlow || isAdmin) {
-    bindStatusAndOrderByModalidadePicker(demand.id);
+    bindStatusAndOrderByModalidadePicker(normalizedDemand.id);
   }
 
   if (canFullEdit) {
@@ -4914,18 +5192,18 @@ function openLicitacaoDetailsModal(demand) {
     bindResponsavelBySetorPicker();
     const saveBtn = document.getElementById('saveDemandChangesBtn');
     if (saveBtn) {
-      saveBtn.addEventListener('click', () => saveLicitacaoDemandFromModal(demand.id));
+      saveBtn.addEventListener('click', () => saveLicitacaoDemandFromModal(normalizedDemand.id));
     }
   }
 
   const tramitarBtn = document.getElementById('tramitarDemandBtn');
   if (tramitarBtn) {
-    tramitarBtn.addEventListener('click', () => tramitarLicitacaoDemandFromModal(demand.id));
+    tramitarBtn.addEventListener('click', () => tramitarLicitacaoDemandFromModal(normalizedDemand.id));
   }
 
   const toggleBtn = document.getElementById('toggleConcluidoAdjustBtn');
   if (toggleBtn) {
-    toggleBtn.addEventListener('click', () => toggleConcluidoAdjustmentPermission(demand.id));
+    toggleBtn.addEventListener('click', () => toggleConcluidoAdjustmentPermission(normalizedDemand.id));
   }
 
   modal.classList.add('active');
@@ -4956,7 +5234,7 @@ function buildNupNumber() {
   };
 }
 
-function submitProtocolForm(event) {
+async function submitProtocolForm(event) {
   event.preventDefault();
 
   const municipio = document.getElementById('protocolMunicipio')?.value?.trim() || '';
@@ -4965,6 +5243,15 @@ function submitProtocolForm(event) {
   const setorDestino = document.getElementById('protocolSetor')?.value?.trim() || '';
   const documentoInput = document.getElementById('protocolDocumento');
   const documento = documentoInput?.files?.[0] || null;
+  let documentoInicialDataUrl = '';
+  if (documento) {
+    try {
+      documentoInicialDataUrl = await readFileAsDataUrl(documento);
+    } catch (error) {
+      window.alert('Não foi possível anexar o documento inicial selecionado.');
+      return;
+    }
+  }
   const isNaoLicitatoria = Boolean(document.getElementById('protocolNaoLicitatoria')?.checked);
 
   if (!municipio || !orgao || !objeto || !setorDestino) {
@@ -4992,6 +5279,7 @@ function submitProtocolForm(event) {
     secretaria: secretariaInicial,
     objeto,
     documentoInicialNome: documento?.name || '-',
+    documentoInicialDataUrl,
     setorDestino,
     setorResponsavel: setorResponsavelInicial,
     responsavel: responsavelDefault,
@@ -5012,6 +5300,8 @@ function submitProtocolForm(event) {
     createdAt: new Date().toLocaleDateString('pt-BR'),
     createdAtIso: new Date().toISOString()
   };
+
+  demand.tramites = ensureDemandTramites(demand);
 
   state.licitacoesDemandas = Array.isArray(state.licitacoesDemandas) ? state.licitacoesDemandas : [];
   state.licitacoesDemandas.unshift(demand);
@@ -6654,7 +6944,7 @@ function renderModuleContent(moduleKey) {
   }
 
   if (moduleKey === 'licitacoes') {
-    const demandas = (Array.isArray(state.licitacoesDemandas) ? state.licitacoesDemandas : []).map((item) => ({
+    const demandas = (Array.isArray(state.licitacoesDemandas) ? state.licitacoesDemandas : []).map((item) => normalizeLicitacaoDemandRecord({
       status: 'DFD',
       modalidade: '-',
       numeroOrdem: '-',
