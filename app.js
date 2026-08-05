@@ -5076,26 +5076,47 @@ function openLicitacaoDetailsModal(demand) {
     .slice()
     .sort((a, b) => new Date(b.dataHoraIso).getTime() - new Date(a.dataHoraIso).getTime());
 
+  const getDocVisualByName = (doc) => {
+    const nome = String(doc?.nome || '').toLowerCase();
+    const tipo = String(doc?.tipo || '').toLowerCase();
+    const probe = `${nome} ${tipo}`;
+
+    if (/(\.pdf\b|pdf)/.test(probe)) return { icon: '📕', label: 'PDF' };
+    if (/(\.docx?\b|word|odt)/.test(probe)) return { icon: '📘', label: 'WORD' };
+    if (/(\.xlsx?\b|excel|planilha|csv)/.test(probe)) return { icon: '📗', label: 'EXCEL' };
+    if (/(\.pptx?\b|powerpoint)/.test(probe)) return { icon: '📙', label: 'PPT' };
+    if (/(\.png\b|\.jpe?g\b|\.webp\b|\.gif\b|imagem|foto)/.test(probe)) return { icon: '🖼️', label: 'IMAGEM' };
+
+    return { icon: '📎', label: 'DOC' };
+  };
+
   const tramitesHtml = tramites.length
     ? tramites.map((item) => {
       const docs = Array.isArray(item.documentos) ? item.documentos : [];
+      const docHtml = docs.length
+        ? docs.map((doc) => {
+          const docVisual = getDocVisualByName(doc);
+          const docLabel = `${docVisual.icon} ${docVisual.label}`;
+          const docName = doc.nome || 'Documento';
+          const docUrl = String(doc.url || '').trim();
+
+          if (!docUrl) {
+            return `<span class="tramite-doc-chip tramite-doc-chip-inline is-disabled" title="Documento sem visualização">${escapeHtml(docLabel)}</span>`;
+          }
+
+          return `<button class="tramite-doc-chip tramite-doc-chip-inline" type="button" data-tramite-doc-url="${escapeHtml(docUrl)}" aria-label="Abrir documento ${escapeHtml(docName)}" title="Abrir ${escapeHtml(docName)}">${escapeHtml(docLabel)}</button>`;
+        }).join('')
+        : '<span class="tramite-doc-empty">-</span>';
       return `
         <article class="tramite-item">
-          <header class="tramite-item-head">
-            <strong>${escapeHtml(item.status || '-')}</strong>
-            <span>${escapeHtml(formatDateTimePtBr(item.dataHoraIso))}</span>
-          </header>
-          <p class="tramite-item-responsavel">Responsável: ${escapeHtml(item.responsavel || '-')}</p>
-          <div class="tramite-item-docs">
-            ${docs.length
-              ? docs.map((doc) => {
-                const hasUrl = Boolean(String(doc.url || '').trim());
-                if (!hasUrl) {
-                  return `<span class="tramite-doc-chip is-disabled" title="Documento sem visualização">📎 ${escapeHtml(doc.nome || 'Documento')}</span>`;
-                }
-                return `<button class="tramite-doc-chip" type="button" data-tramite-doc-url="${escapeHtml(doc.url)}" aria-label="Abrir documento ${escapeHtml(doc.nome || 'Documento')}" title="Abrir ${escapeHtml(doc.nome || 'Documento')}">📎 ${escapeHtml(doc.nome || 'Documento')}</button>`;
-              }).join('')
-              : '<span class="tramite-doc-empty">Sem anexos nesta etapa.</span>'}
+          <div class="tramite-item-inline-row">
+            <strong class="tramite-inline-status">${escapeHtml(item.status || '-')}</strong>
+            <span class="tramite-inline-sep" aria-hidden="true">|</span>
+            <span class="tramite-inline-docs">${docHtml}</span>
+            <span class="tramite-inline-sep" aria-hidden="true">|</span>
+            <span class="tramite-inline-responsavel">Responsável: ${escapeHtml(item.responsavel || '-')}</span>
+            <span class="tramite-inline-sep" aria-hidden="true">|</span>
+            <span class="tramite-inline-data">${escapeHtml(formatDateTimePtBr(item.dataHoraIso))}</span>
           </div>
         </article>
       `;
@@ -5169,14 +5190,13 @@ function openLicitacaoDetailsModal(demand) {
         </div>
       </section>
 
-      <button id="licitacaoHistoryToggleBtn" class="licitacao-history-toggle" type="button" aria-label="Expandir ou recolher histórico de trâmites" aria-expanded="${licitacaoDetailsHistoryExpanded ? 'true' : 'false'}" title="Histórico de trâmites">
+      <button id="licitacaoHistoryToggleBtn" class="licitacao-history-toggle" type="button" aria-label="Expandir ou recolher Tramitação Processual" aria-expanded="${licitacaoDetailsHistoryExpanded ? 'true' : 'false'}" title="Tramitação Processual">
         ${licitacaoDetailsHistoryExpanded ? '&lt;&lt;' : '&gt;&gt;'}
       </button>
 
       <aside class="licitacao-history-panel" aria-hidden="${licitacaoDetailsHistoryExpanded ? 'false' : 'true'}">
         <div class="licitacao-history-head">
-          <h3>Histórico de trâmites</h3>
-          <p>Etapas, responsáveis e anexos.</p>
+          <h3>Tramitação Processual</h3>
         </div>
         <div class="licitacao-history-list">
           ${tramitesHtml}

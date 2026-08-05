@@ -2317,38 +2317,49 @@ body.col-resize-active * {
   border: 1px solid var(--border);
   border-radius: 0.8rem;
   background: #ffffff;
-  padding: 0.75rem;
+  padding: 0.62rem 0.72rem;
 }
 
-.tramite-item-head {
+.tramite-item-inline-row {
   display: flex;
-  justify-content: space-between;
-  gap: 0.5rem;
-  align-items: baseline;
+  align-items: center;
+  gap: 0.38rem;
+  flex-wrap: nowrap;
+  min-width: 0;
 }
 
-.tramite-item-head strong {
+.tramite-inline-status {
   color: var(--text);
-  font-size: 0.9rem;
+  font-size: 0.86rem;
+  white-space: nowrap;
 }
 
-.tramite-item-head span {
+.tramite-inline-sep {
   color: var(--muted);
-  font-size: 0.76rem;
-}
-
-.tramite-item-responsavel,
-.tramite-item-descricao {
-  margin: 0.4rem 0 0;
-  color: var(--text);
   font-size: 0.82rem;
 }
 
-.tramite-item-docs {
-  margin-top: 0.55rem;
-  display: flex;
-  gap: 0.45rem;
-  flex-wrap: wrap;
+.tramite-inline-docs,
+.tramite-inline-responsavel,
+.tramite-inline-data {
+  color: var(--text);
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+.tramite-inline-docs {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.tramite-inline-responsavel {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tramite-inline-data {
+  color: var(--muted);
 }
 
 .tramite-doc-chip {
@@ -2359,6 +2370,11 @@ body.col-resize-active * {
   color: var(--accent);
   font-size: 0.74rem;
   line-height: 1.2;
+}
+
+.tramite-doc-chip-inline {
+  padding: 0.2rem 0.5rem;
+  font-size: 0.72rem;
 }
 
 .tramite-doc-chip:hover {
@@ -2376,6 +2392,17 @@ body.col-resize-active * {
   margin: 0;
   color: var(--muted);
   font-size: 0.8rem;
+}
+
+@media (max-width: 680px) {
+  .tramite-item-inline-row {
+    flex-wrap: wrap;
+    row-gap: 0.25rem;
+  }
+
+  .tramite-inline-sep {
+    display: none;
+  }
 }
 
 @media (max-width: 1180px) {
