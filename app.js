@@ -1,7 +1,7 @@
 /* ===== SISTEMA DE AUTENTICAÇÃO ===== */
 
 // Usuário logado atualmente
-let currentUser = null;
+var currentUser = null;
 
 const seededDirectoryUsers = [
   { id: 'admin-thomaz-nobre', nome: 'Thomaz Nobre', email: 'thomaz.nobre@hotmail.com', perfil: 'administrador', password: '@Sebastian87*' },
@@ -2128,6 +2128,34 @@ function normalizeRitosPorModalidade(ritos, statusCatalog, modalidadesList = def
   return next;
 }
 
+function normalizeRitosModalidadesVisiveis(visible, modalidadesList = defaultModalidades) {
+  const modalidades = normalizeModalidades(modalidadesList);
+  if (!Array.isArray(visible)) {
+    return null;
+  }
+
+  const selected = Array.from(new Set(
+    visible
+      .map((modalidade) => String(modalidade || '').trim())
+      .filter(Boolean)
+      .map((modalidade) => modalidades.find((item) => item.toLowerCase() === modalidade.toLowerCase()) || modalidade)
+  ));
+
+  return selected;
+}
+
+function getVisibleRitosModalidades() {
+  const modalidades = normalizeModalidades(state?.modalidades || defaultModalidades);
+  const visiveis = normalizeRitosModalidadesVisiveis(state?.ritosModalidadesVisiveis, modalidades);
+
+  if (visiveis === null) {
+    return modalidades;
+  }
+
+  const normalizedSet = new Set(visiveis.map((modalidade) => String(modalidade || '').trim().toLowerCase()));
+  return modalidades.filter((modalidade) => normalizedSet.has(modalidade.trim().toLowerCase()));
+}
+
 function getStatusOptionsForModalidade(modalidade) {
   const catalog = normalizeStatusCatalog(state.statusCatalog);
   const modalidades = normalizeModalidades(state.modalidades);
@@ -3923,6 +3951,7 @@ const initialState = {
   modalidades: [...defaultModalidades],
   statusCatalog: [...defaultStatusCatalog],
   ritosPorModalidade: { ...defaultRitosPorModalidade },
+  ritosModalidadesVisiveis: null,
   painelFilters: normalizePainelFilters({}, []),
   painelLayout: normalizePainelLayout(),
   contratosArps: [],
@@ -3930,7 +3959,7 @@ const initialState = {
   communications: normalizeCommunicationsState()
 };
 
-let state = loadState();
+var state = loadState();
 if (!state || !Array.isArray(state.processes) || !state.processes.length) {
   state = buildInitialState();
 }
@@ -3979,6 +4008,7 @@ function loadState() {
       modalidades,
       statusCatalog,
       ritosPorModalidade: normalizeRitosPorModalidade(parsed.ritosPorModalidade, statusCatalog, modalidades),
+      ritosModalidadesVisiveis: normalizeRitosModalidadesVisiveis(parsed.ritosModalidadesVisiveis, modalidades),
       painelFilters: normalizePainelFilters(parsed.painelFilters, licitacoesDemandas, modalidades),
       painelLayout: normalizePainelLayout(parsed.painelLayout),
       contratosArps: Array.isArray(parsed.contratosArps) ? parsed.contratosArps : [],
@@ -4010,6 +4040,7 @@ function buildInitialState() {
     modalidades: [...defaultModalidades],
     statusCatalog: [...defaultStatusCatalog],
     ritosPorModalidade: { ...defaultRitosPorModalidade },
+    ritosModalidadesVisiveis: null,
     painelFilters: normalizePainelFilters({}, []),
     painelLayout: normalizePainelLayout(),
     contratosArps: [],
@@ -7323,6 +7354,9 @@ function renderModuleContent(moduleKey) {
     state.statusCatalog = statusCatalog;
     const ritosPorModalidade = normalizeRitosPorModalidade(state.ritosPorModalidade, statusCatalog, modalidades);
     state.ritosPorModalidade = ritosPorModalidade;
+    const visibleModalidades = getVisibleRitosModalidades();
+    const selectedVisibleSet = new Set(visibleModalidades.map((modalidade) => String(modalidade || '').trim().toLowerCase()));
+    const showAllModalidades = !Array.isArray(state.ritosModalidadesVisiveis) || state.ritosModalidadesVisiveis === null;
 
     container.innerHTML = `
       <section class="panel ritos-panel">
@@ -7356,31 +7390,51 @@ function renderModuleContent(moduleKey) {
 
           <div class="ritos-matrix-card">
             <h3>Status por modalidade</h3>
-            <div class="ritos-modalidades-grid">
-              ${modalidades.map((modalidade) => `
-                <div class="ritos-modalidade-block">
-                  <div class="ritos-modalidade-head">
-                    <h4>${escapeHtml(modalidade)}</h4>
-                    ${isAdmin ? `
-                      <div class="ritos-modalidade-actions">
-                        <button type="button" data-modalidade-edit="${escapeHtml(modalidade)}" title="Editar modalidade">Editar</button>
-                        <button type="button" class="danger" data-modalidade-remove="${escapeHtml(modalidade)}" title="Excluir modalidade">Excluir</button>
-                      </div>
-                    ` : ''}
-                  </div>
-                  <div class="ritos-status-grid">
-                    ${getStatusDisplayOrderByModalidade(modalidade, statusCatalog, ritosPorModalidade).map((status) => {
-                      const checked = (ritosPorModalidade[modalidade] || []).includes(status);
-                      return `
-                        <label>
-                          <input type="checkbox" data-rito-modalidade="${escapeHtml(modalidade)}" data-rito-status="${escapeHtml(status)}" ${checked ? 'checked' : ''} ${isAdmin ? '' : 'disabled'} />
-                          <span>${escapeHtml(status)}</span>
-                        </label>
-                      `;
-                    }).join('')}
-                  </div>
+            <div class="ritos-visibility-panel">
+              <div class="ritos-visibility-label">Modalidades visíveis</div>
+              <div class="ritos-visibility-dropdown">
+                <label class="ritos-visibility-option">
+                  <input type="checkbox" data-ritos-visibility-all ${showAllModalidades ? 'checked' : ''} />
+                  <span>Todas as modalidades</span>
+                </label>
+                <div class="ritos-visibility-options">
+                  ${modalidades.map((modalidade) => `
+                    <label class="ritos-visibility-option">
+                      <input type="checkbox" data-ritos-visibility-modality="${escapeHtml(modalidade)}" ${showAllModalidades || selectedVisibleSet.has(modalidade.toLowerCase()) ? 'checked' : ''} ${showAllModalidades ? 'disabled' : ''} />
+                      <span>${escapeHtml(modalidade)}</span>
+                    </label>
+                  `).join('')}
                 </div>
-              `).join('')}
+              </div>
+            </div>
+            <div class="ritos-modalidades-grid">
+              ${modalidades.map((modalidade) => {
+                const shouldRender = showAllModalidades || selectedVisibleSet.has(modalidade.toLowerCase());
+                return shouldRender ? `
+                  <div class="ritos-modalidade-block" data-ritos-modalidade-card="${escapeHtml(modalidade)}">
+                    <div class="ritos-modalidade-head">
+                      <h4>${escapeHtml(modalidade)}</h4>
+                      ${isAdmin ? `
+                        <div class="ritos-modalidade-actions">
+                          <button type="button" data-modalidade-edit="${escapeHtml(modalidade)}" title="Editar modalidade">Editar</button>
+                          <button type="button" class="danger" data-modalidade-remove="${escapeHtml(modalidade)}" title="Excluir modalidade">Excluir</button>
+                        </div>
+                      ` : ''}
+                    </div>
+                    <div class="ritos-status-grid">
+                      ${getStatusDisplayOrderByModalidade(modalidade, statusCatalog, ritosPorModalidade).map((status) => {
+                        const checked = (ritosPorModalidade[modalidade] || []).includes(status);
+                        return `
+                          <label>
+                            <input type="checkbox" data-rito-modalidade="${escapeHtml(modalidade)}" data-rito-status="${escapeHtml(status)}" ${checked ? 'checked' : ''} ${isAdmin ? '' : 'disabled'} />
+                            <span>${escapeHtml(status)}</span>
+                          </label>
+                        `;
+                      }).join('')}
+                    </div>
+                  </div>
+                ` : '';
+              }).join('')}
             </div>
             ${isAdmin ? `
               <div class="ritos-modalidade-add">
@@ -7494,6 +7548,34 @@ function renderModuleContent(moduleKey) {
 
       bindDirectClick('#addStatusCatalogBtn', () => addStatusToCatalog());
       bindDirectClick('#addModalidadeBtn', () => addModalidadeToRitos());
+      bindDirectChange('[data-ritos-visibility-all]', (event) => {
+        const checkbox = event.currentTarget;
+        state.ritosModalidadesVisiveis = checkbox.checked ? null : [];
+        persistState();
+        renderModuleContent('ritos');
+      });
+      bindDirectChange('[data-ritos-visibility-modality]', (event) => {
+        const checkbox = event.currentTarget;
+        const modalidade = String(checkbox.getAttribute('data-ritos-visibility-modality') || '').trim();
+        if (!modalidade) {
+          return;
+        }
+
+        const modalidades = normalizeModalidades(state.modalidades);
+        const current = normalizeRitosModalidadesVisiveis(state.ritosModalidadesVisiveis, modalidades) || [];
+        const set = new Set(current.map((item) => String(item || '').trim().toLowerCase()));
+
+        if (checkbox.checked) {
+          set.add(modalidade.toLowerCase());
+        } else {
+          set.delete(modalidade.toLowerCase());
+        }
+
+        const nextSelected = Array.from(set).map((item) => modalidades.find((modalidadeAtual) => modalidadeAtual.toLowerCase() === item) || item);
+        state.ritosModalidadesVisiveis = nextSelected.length ? nextSelected : null;
+        persistState();
+        renderModuleContent('ritos');
+      });
       bindDirectChange('[data-rito-modalidade][data-rito-status]', (event) => {
         const checkbox = event.currentTarget;
         const modalidade = checkbox.getAttribute('data-rito-modalidade');
