@@ -1,0 +1,94 @@
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const vm = require('node:vm');
+
+test('hasAdminAccess reconhece perfis de administrador com variação de caixa', () => {
+  const context = {
+    console,
+    crypto: { randomUUID: () => 'test-id' },
+    localStorage: {
+      store: {},
+      getItem(key) { return this.store[key] ?? null; },
+      setItem(key, value) { this.store[key] = String(value); },
+      removeItem(key) { delete this.store[key]; }
+    },
+    window: { alert() {} },
+    document: {
+      addEventListener() {},
+      body: { dataset: {} },
+      getElementById() { return null; },
+      querySelectorAll() { return []; },
+      createElement() { return {}; }
+    },
+    setTimeout,
+    clearTimeout,
+    URLSearchParams,
+    Date
+  };
+
+  vm.createContext(context);
+  vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8'), context);
+
+  assert.equal(context.hasAdminAccess({ perfil: 'Administrador' }), true);
+  assert.equal(context.hasAdminAccess({ perfil: 'administrador' }), true);
+  assert.equal(context.hasAdminAccess({ perfil: 'usuario' }), false);
+  assert.equal(context.hasAdminAccess({ perfil: 'ADMINISTRADOR' }), true);
+});
+
+test('renderModuleContent do catálogo de status mantém ações de admin para perfis com caixa mista', () => {
+  const context = {
+    console,
+    crypto: { randomUUID: () => 'test-id' },
+    localStorage: {
+      store: {},
+      getItem(key) { return this.store[key] ?? null; },
+      setItem(key, value) { this.store[key] = String(value); },
+      removeItem(key) { delete this.store[key]; }
+    },
+    window: { alert() {}, prompt() { return null; } },
+    document: {
+      addEventListener() {},
+      body: { dataset: {} },
+      getElementById() { return null; },
+      querySelectorAll() { return []; },
+      createElement() { return {}; }
+    },
+    setTimeout,
+    clearTimeout,
+    URLSearchParams,
+    Date
+  };
+
+  vm.createContext(context);
+  vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8'), context);
+
+  const container = {
+    innerHTML: '',
+    querySelectorAll() { return []; },
+    querySelector() { return null; }
+  };
+
+  vm.runInContext(`
+    state = {
+      statusCatalog: ['DFD', 'PARECER JURÍDICO', 'CONCLUÍDO'],
+      modalidades: ['Contratação Direta'],
+      ritosPorModalidade: { 'Contratação Direta': ['DFD', 'PARECER JURÍDICO'] }
+    };
+    currentUser = { perfil: 'Administrador' };
+  `, context);
+
+  context.document.getElementById = (id) => {
+    if (id === 'moduleContent') {
+      return container;
+    }
+    return null;
+  };
+
+  vm.runInContext('renderModuleContent("ritos")', context);
+
+  assert.match(container.innerHTML, /data-status-remove=/);
+  assert.match(container.innerHTML, /data-status-edit=/);
+  assert.match(container.innerHTML, /Adicionar/);
+});

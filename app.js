@@ -26,8 +26,33 @@ const statusCanonicalAliases = {
   'parecer juridico': 'PARECER JURÍDICO',
   'publicacoes de extrato': 'PUBLICAÇÃO DO EXTRATO',
   'publicacao do extrato': 'PUBLICAÇÃO DO EXTRATO',
+  'publicacao de edital': 'PUBLICAÇÃO DE EDITAL',
+  'publicacao de aviso de dispensa': 'PUBLICAÇÃO DE AVISO DE DISPENSA',
   'termo de aquivamento': 'TERMO DE ARQUIVAMENTO',
-  'termo de arquivamento': 'TERMO DE ARQUIVAMENTO'
+  'termo de arquivamento': 'TERMO DE ARQUIVAMENTO',
+  'minuta de contrato (ipsis litteris à minuta da arp)': 'MINUTA DE CONTRATO',
+  'minuta de contrato': 'MINUTA DE CONTRATO',
+  'minuta de termo aditivo': 'MINUTA DE TERMO ADITIVO',
+  'minuta de edital': 'MINUTA DE EDITAL',
+  contrato: 'CONTRATO',
+  'contrato (assinando)': 'CONTRATO',
+  arp: 'ARP',
+  'termo aditivo': 'TERMO ADITIVO',
+  'dotacao orcamentaria': 'DOTAÇÃO ORÇAMENTÁRIA',
+  dotacao: 'DOTAÇÃO ORÇAMENTÁRIA',
+  'dotação': 'DOTAÇÃO ORÇAMENTÁRIA',
+  'sessao aberta': 'SESSÃO ABERTA',
+  'sessao suspensa': 'SESSÃO SUSPENSA',
+  'sessao deserata': 'SESSÃO DESERTA',
+  'licitacao fracassada': 'LICITAÇÃO FRACASSADA',
+  'em recurso': 'EM RECURSO',
+  'em contrarrazões': 'EM CONTRARRAZÕES',
+  'julgando recurso': 'JULGANDO RECURSO',
+  'analisando habilitacao': 'ANALISANDO HABILITAÇÃO',
+  'documentos vencedores': 'DOCUMENTOS VENCEDORES',
+  adjudicacao: 'ADJUDICAÇÃO',
+  homologacao: 'HOMOLOGAÇÃO',
+  'concluido': 'CONCLUÍDO'
 };
 
 function normalizeStatusAliasKey(value) {
@@ -45,6 +70,14 @@ function canonicalizeStatusName(status) {
   }
   const aliasKey = normalizeStatusAliasKey(raw);
   return statusCanonicalAliases[aliasKey] || raw;
+}
+
+function isAdminUser(user = currentUser) {
+  return String(user?.perfil || '').trim().toLowerCase() === 'administrador';
+}
+
+function hasAdminAccess(user = currentUser) {
+  return isAdminUser(user);
 }
 
 function normalizeUserAccessNodeIds(nodeIds) {
@@ -110,7 +143,7 @@ function normalizeUser(user) {
     cpf: String(source.cpf || '').trim(),
     phone: String(source.phone || '').trim(),
     password: String(source.password || ''),
-    perfil: String(source.perfil || 'usuario').trim(),
+    perfil: String(source.perfil || 'usuario').trim().toLowerCase(),
     setores: Array.from(new Set([...legacySetores, ...setoresFromAccess])),
     acessosMunicipais,
     accessNodeIds,
@@ -630,6 +663,9 @@ function initAdminUser() {
 }
 
 function initPasswordToggles() {
+  if (!document.body || !document.body.dataset) {
+    return;
+  }
   if (document.body.dataset.passwordToggleBound) {
     return;
   }
@@ -812,6 +848,8 @@ const defaultStatusCatalog = [
   'PARECER JURÍDICO',
   'AUTORIZAÇÃO',
   'PUBLICAÇÃO DO EXTRATO',
+  'PUBLICAÇÃO DE EDITAL',
+  'PUBLICAÇÃO DE AVISO DE DISPENSA',
   'TERMO DE ARQUIVAMENTO',
   'OFÍCIO / MEMORANDO',
   'OFÍCIO AO FORNECEDOR',
@@ -819,15 +857,30 @@ const defaultStatusCatalog = [
   'OFÍCIO EM RESPOSTA E DOCS (ACEITE DO FORNECEDOR)',
   'OFÍCIO EM RESPOSTA E PROCESSO LICITATÓRIO (AUTORIZAÇÃO)',
   'PESQUISA DE MERCADOLÓGICA (ATESTANDO VANTAJOSIDADE FINANCEIRA)',
-  'MINUTA DE CONTRATO (IPSIS LITTERIS À MINUTA DA ARP)',
-  'DOTAÇÃO',
-  'CONTRATO (ASSINANDO)',
+  'MINUTA DE CONTRATO',
+  'MINUTA DE TERMO ADITIVO',
+  'MINUTA DE EDITAL',
+  'DOTAÇÃO ORÇAMENTÁRIA',
+  'CONTRATO',
+  'ARP',
+  'TERMO ADITIVO',
   'SANEAMENTO',
+  'SESSÃO ABERTA',
+  'SESSÃO SUSPENSA',
+  'SESSÃO DESERTA',
+  'LICITAÇÃO FRACASSADA',
+  'EM RECURSO',
+  'EM CONTRARRAZÕES',
+  'JULGANDO RECURSO',
+  'ANALISANDO HABILITAÇÃO',
+  'DOCUMENTOS VENCEDORES',
+  'ADJUDICAÇÃO',
+  'HOMOLOGAÇÃO',
   'TCE',
   'CONCLUÍDO'
 ];
 
-const defaultRitosTradicionais = ['DFD', 'ETP', 'TR', 'APROVAÇÃO', 'PARECER JURÍDICO', 'AUTORIZAÇÃO', 'PUBLICAÇÃO DO EXTRATO', 'TERMO DE ARQUIVAMENTO', 'TCE', 'CONCLUÍDO'];
+const defaultRitosTradicionais = ['DFD', 'ETP', 'TR', 'APROVAÇÃO', 'PARECER JURÍDICO', 'AUTORIZAÇÃO', 'PUBLICAÇÃO DO EXTRATO', 'PUBLICAÇÃO DE EDITAL', 'PUBLICAÇÃO DE AVISO DE DISPENSA', 'TERMO DE ARQUIVAMENTO', 'TCE', 'CONCLUÍDO'];
 const defaultRitosAtipicos = [
   'OFÍCIO / MEMORANDO',
   'APROVAÇÃO',
@@ -836,13 +889,30 @@ const defaultRitosAtipicos = [
   'OFÍCIO EM RESPOSTA E DOCS (ACEITE DO FORNECEDOR)',
   'OFÍCIO EM RESPOSTA E PROCESSO LICITATÓRIO (AUTORIZAÇÃO)',
   'PESQUISA DE MERCADOLÓGICA (ATESTANDO VANTAJOSIDADE FINANCEIRA)',
-  'MINUTA DE CONTRATO (IPSIS LITTERIS À MINUTA DA ARP)',
-  'DOTAÇÃO',
+  'MINUTA DE CONTRATO',
+  'MINUTA DE TERMO ADITIVO',
+  'MINUTA DE EDITAL',
+  'DOTAÇÃO ORÇAMENTÁRIA',
   'PARECER JURÍDICO',
   'AUTORIZAÇÃO',
-  'CONTRATO (ASSINANDO)',
+  'CONTRATO',
+  'ARP',
+  'TERMO ADITIVO',
   'PUBLICAÇÃO DO EXTRATO',
+  'PUBLICAÇÃO DE EDITAL',
+  'PUBLICAÇÃO DE AVISO DE DISPENSA',
   'SANEAMENTO',
+  'SESSÃO ABERTA',
+  'SESSÃO SUSPENSA',
+  'SESSÃO DESERTA',
+  'LICITAÇÃO FRACASSADA',
+  'EM RECURSO',
+  'EM CONTRARRAZÕES',
+  'JULGANDO RECURSO',
+  'ANALISANDO HABILITAÇÃO',
+  'DOCUMENTOS VENCEDORES',
+  'ADJUDICAÇÃO',
+  'HOMOLOGAÇÃO',
   'TERMO DE ARQUIVAMENTO',
   'TCE',
   'CONCLUÍDO'
@@ -1127,21 +1197,21 @@ const fornecedoresData = [
 ].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
 
 const processosData = [
-  { id: '001', titulo: 'Processo 001', prioridade: 'urgente', orgao: 'Secretaria de Educação', municipio: 'Bom Conselho/PE' },
-  { id: '002', titulo: 'Processo 002', prioridade: 'alta', orgao: 'Secretaria de Educação', municipio: 'Bom Conselho/PE' },
+  { id: '001', titulo: 'Processo 001', prioridade: 'urgente', orgao: 'Secretaria de Educação, Cultura, Esportes, Lazer, Juventude e Turismo', municipio: 'Bom Conselho/PE' },
+  { id: '002', titulo: 'Processo 002', prioridade: 'alta', orgao: 'Secretaria de Educação, Cultura, Esportes, Lazer, Juventude e Turismo', municipio: 'Bom Conselho/PE' },
   { id: '003', titulo: 'Processo 003', prioridade: 'urgente', orgao: 'Secretaria de Saúde', municipio: 'Bom Conselho/PE' },
   { id: '004', titulo: 'Processo 004', prioridade: 'média', orgao: 'Secretaria de Saúde', municipio: 'Bom Conselho/PE' },
-  { id: '005', titulo: 'Processo 005', prioridade: 'baixa', orgao: 'Secretaria de Administração', municipio: 'Bom Conselho/PE' },
-  { id: '006', titulo: 'Processo 006', prioridade: 'urgente', orgao: 'Secretaria de Educação', municipio: 'Japaratinga/AL' },
-  { id: '007', titulo: 'Processo 007', prioridade: 'urgente', orgao: 'Secretaria de Infraestrutura', municipio: 'Bom Conselho/PE' },
-  { id: '008', titulo: 'Processo 008', prioridade: '-', orgao: 'Secretaria de Administração', municipio: 'Japaratinga/AL' },
+  { id: '005', titulo: 'Processo 005', prioridade: 'baixa', orgao: 'Secretaria de Administração e Gestão Pública', municipio: 'Bom Conselho/PE' },
+  { id: '006', titulo: 'Processo 006', prioridade: 'urgente', orgao: 'Secretaria de Educação, Cultura, Esportes, Lazer, Juventude e Turismo', municipio: 'Japaratinga/AL' },
+  { id: '007', titulo: 'Processo 007', prioridade: 'urgente', orgao: 'Secretaria de Infraestrutura e Mobilidade Urbana', municipio: 'Bom Conselho/PE' },
+  { id: '008', titulo: 'Processo 008', prioridade: '-', orgao: 'Secretaria de Administração e Gestão Pública', municipio: 'Japaratinga/AL' },
   { id: '009', titulo: 'Processo 009', prioridade: 'alta', orgao: 'Secretaria de Saúde', municipio: 'Marechal Deodoro/AL' },
-  { id: '010', titulo: 'Processo 010', prioridade: 'urgente', orgao: 'Secretaria de Educação', municipio: 'Bom Conselho/PE' },
-  { id: '011', titulo: 'Processo 011', prioridade: 'média', orgao: 'Secretaria de Infraestrutura', municipio: 'Marechal Deodoro/AL' },
+  { id: '010', titulo: 'Processo 010', prioridade: 'urgente', orgao: 'Secretaria de Educação, Cultura, Esportes, Lazer, Juventude e Turismo', municipio: 'Bom Conselho/PE' },
+  { id: '011', titulo: 'Processo 011', prioridade: 'média', orgao: 'Secretaria de Infraestrutura e Mobilidade Urbana', municipio: 'Marechal Deodoro/AL' },
   { id: '012', titulo: 'Processo 012', prioridade: 'urgente', orgao: 'Secretaria de Saúde', municipio: 'Bom Conselho/PE' },
-  { id: '013', titulo: 'Processo 013', prioridade: 'baixa', orgao: 'Secretaria de Educação', municipio: 'Japaratinga/AL' },
-  { id: '014', titulo: 'Processo 014', prioridade: 'alta', orgao: 'Secretaria de Administração', municipio: 'Matriz de Camaragibe/AL' },
-  { id: '015', titulo: 'Processo 015', prioridade: '-', orgao: 'Secretaria de Infraestrutura', municipio: 'São Miguel dos Campos/AL' }
+  { id: '013', titulo: 'Processo 013', prioridade: 'baixa', orgao: 'Secretaria de Educação, Cultura, Esportes, Lazer, Juventude e Turismo', municipio: 'Japaratinga/AL' },
+  { id: '014', titulo: 'Processo 014', prioridade: 'alta', orgao: 'Secretaria de Administração e Gestão Pública', municipio: 'Matriz de Camaragibe/AL' },
+  { id: '015', titulo: 'Processo 015', prioridade: '-', orgao: 'Secretaria de Infraestrutura e Mobilidade Urbana', municipio: 'São Miguel dos Campos/AL' }
 ];
 
 const orgaosPorMunicipio = {
@@ -1525,7 +1595,7 @@ function getPanelCardSpanClass(cardKey) {
 }
 
 function movePainelCard(fromKey, toKey) {
-  if (currentUser?.perfil !== 'administrador') {
+  if (!isAdminUser(currentUser)) {
     return;
   }
 
@@ -1551,7 +1621,7 @@ function movePainelCard(fromKey, toKey) {
 }
 
 function togglePainelCardSpan(cardKey) {
-  if (currentUser?.perfil !== 'administrador') {
+  if (!isAdminUser(currentUser)) {
     return;
   }
 
@@ -1640,7 +1710,7 @@ function bindPanelCards() {
       spanToggle.dataset.bound = '1';
     }
 
-    if (currentUser?.perfil === 'administrador' && dragHandle && !dragHandle.dataset.bound) {
+    if (isAdminUser(currentUser) && dragHandle && !dragHandle.dataset.bound) {
       dragHandle.setAttribute('draggable', 'true');
       dragHandle.addEventListener('dragstart', () => {
         document._panelDraggingCardKey = cardKey;
@@ -1651,7 +1721,7 @@ function bindPanelCards() {
       dragHandle.dataset.bound = '1';
     }
 
-    if (currentUser?.perfil === 'administrador' && !card.dataset.bound) {
+    if (isAdminUser(currentUser) && !card.dataset.bound) {
       card.addEventListener('dragover', (event) => {
         if (document._panelDraggingCardKey) {
           event.preventDefault();
@@ -2481,7 +2551,7 @@ function getNextNumeroOrdemByModalidade(modalidade, currentDemandId = null) {
 }
 
 function addStatusToCatalog() {
-  if (currentUser?.perfil !== 'administrador') {
+  if (!hasAdminAccess()) {
     return;
   }
 
@@ -2508,7 +2578,7 @@ function addStatusToCatalog() {
 }
 
 function removeStatusFromCatalog(statusToRemove) {
-  if (currentUser?.perfil !== 'administrador') {
+  if (!hasAdminAccess()) {
     return;
   }
 
@@ -2517,9 +2587,15 @@ function removeStatusFromCatalog(statusToRemove) {
     return;
   }
 
-  const catalog = normalizeStatusCatalog(state.statusCatalog).filter((item) => item !== status);
+  const currentCatalog = normalizeStatusCatalog(state.statusCatalog);
+  const catalog = currentCatalog.filter((item) => item !== status);
   if (!catalog.length) {
     window.alert('O catálogo precisa de ao menos um status.');
+    return;
+  }
+
+  if (!currentCatalog.includes(status)) {
+    window.alert('Esse status não está mais no catálogo.');
     return;
   }
 
@@ -2541,7 +2617,7 @@ function removeStatusFromCatalog(statusToRemove) {
 }
 
 function renameStatusInCatalog(oldStatus, newStatusRaw) {
-  if (currentUser?.perfil !== 'administrador') {
+  if (!hasAdminAccess()) {
     return;
   }
 
@@ -2581,7 +2657,7 @@ function renameStatusInCatalog(oldStatus, newStatusRaw) {
 }
 
 function toggleRitoStatus(modalidade, status, enabled) {
-  if (currentUser?.perfil !== 'administrador') {
+  if (!hasAdminAccess()) {
     return;
   }
 
@@ -2611,7 +2687,7 @@ function toggleRitoStatus(modalidade, status, enabled) {
 }
 
 function moveStatusCatalogItem(status, targetStatus) {
-  if (currentUser?.perfil !== 'administrador') {
+  if (!hasAdminAccess()) {
     return;
   }
 
@@ -2639,7 +2715,7 @@ function moveStatusCatalogItem(status, targetStatus) {
 }
 
 function addModalidadeToRitos() {
-  if (currentUser?.perfil !== 'administrador') {
+  if (!hasAdminAccess()) {
     return;
   }
 
@@ -2668,7 +2744,7 @@ function addModalidadeToRitos() {
 }
 
 function renameModalidadeInRitos(oldModalidade, newModalidadeRaw) {
-  if (currentUser?.perfil !== 'administrador') {
+  if (!hasAdminAccess()) {
     return;
   }
 
@@ -2723,7 +2799,7 @@ function renameModalidadeInRitos(oldModalidade, newModalidadeRaw) {
 }
 
 function removeModalidadeFromRitos(modalidadeToRemove) {
-  if (currentUser?.perfil !== 'administrador') {
+  if (!hasAdminAccess()) {
     return;
   }
 
@@ -2794,6 +2870,28 @@ function normalizeCorporateEmail(email, emailIndex = 0) {
   };
 }
 
+function pruneCommunicationStateForRetention(stateData) {
+  const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
+
+  const emails = Array.isArray(stateData?.emails) ? stateData.emails : [];
+  const rooms = Array.isArray(stateData?.rooms) ? stateData.rooms : [];
+
+  return {
+    ...stateData,
+    emails: emails.filter((email) => {
+      const sentAt = new Date(email?.sentAt || 0).getTime();
+      return Number.isFinite(sentAt) && sentAt >= cutoff;
+    }),
+    rooms: rooms.map((room) => ({
+      ...room,
+      messages: (Array.isArray(room?.messages) ? room.messages : []).filter((message) => {
+        const sentAt = new Date(message?.sentAt || 0).getTime();
+        return Number.isFinite(sentAt) && sentAt >= cutoff;
+      })
+    })).filter((room) => room.messages.length || new Date(room?.createdAt || 0).getTime() >= cutoff)
+  };
+}
+
 function normalizeChatMessage(message, messageIndex = 0) {
   return {
     id: String(message?.id || `message-${messageIndex + 1}`),
@@ -2820,11 +2918,13 @@ function normalizeCommunicationRoom(room, roomIndex = 0) {
 }
 
 function normalizeCommunicationsState(communications) {
-  return {
+  const normalized = {
     emails: Array.isArray(communications?.emails) ? communications.emails.map((email, index) => normalizeCorporateEmail(email, index)) : [],
     rooms: Array.isArray(communications?.rooms) ? communications.rooms.map((room, index) => normalizeCommunicationRoom(room, index)) : [],
     presence: Array.isArray(communications?.presence) ? communications.presence : []
   };
+
+  return pruneCommunicationStateForRetention(normalized);
 }
 
 function getCorporateEmailsForCurrentUser() {
@@ -2866,7 +2966,7 @@ function getUsersByIds(userIds) {
 
 function getAccessibleCommunicationRooms() {
   const rooms = communicationStore.rooms.slice().sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-  if (currentUser?.perfil === 'administrador') {
+  if (isAdminUser(currentUser)) {
     return rooms;
   }
 
@@ -2909,7 +3009,7 @@ function markCommunicationRoomAsSeen(roomId) {
 
 function getVisibleCommunicationUsers(room) {
   const onlineUsers = getOnlineUsers();
-  if (currentUser?.perfil === 'administrador') {
+  if (isAdminUser(currentUser)) {
     return onlineUsers;
   }
 
@@ -3002,7 +3102,7 @@ async function ensureCommunicationDataLoaded() {
 }
 
 async function createCommunicationRoomApi(name, memberIds) {
-  if (currentUser?.perfil !== 'administrador') {
+  if (!isAdminUser(currentUser)) {
     window.alert('Somente o administrador pode criar salas.');
     return;
   }
@@ -3144,7 +3244,7 @@ async function renderComunicacaoModule(container) {
   const selectedRoom = rooms.find((room) => room.id === selectedChatRoomId) || rooms[0] || null;
   selectedChatRoomId = selectedRoom?.id || null;
 
-  if (currentUser?.perfil !== 'administrador') {
+  if (!isAdminUser(currentUser)) {
     selectedChatMemberIds = new Set((selectedRoom?.memberIds || []).filter((memberId) => memberId !== currentUser.id));
   }
 
@@ -3155,7 +3255,7 @@ async function renderComunicacaoModule(container) {
   const activeRoom = getAccessibleCommunicationRooms().find((room) => room.id === selectedChatRoomId) || selectedRoom;
   const onlineUsers = getVisibleCommunicationUsers(activeRoom);
   const roomParticipants = activeRoom ? getUsersByIds(activeRoom.memberIds) : [];
-  const isAdmin = currentUser?.perfil === 'administrador';
+  const isAdmin = isAdminUser(currentUser);
   const availableRecipients = getAllUsers().filter((user) => user.id !== currentUser?.id).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
 
   container.innerHTML = `
@@ -3437,7 +3537,7 @@ async function renderComunicacaoModule(container) {
 
 function renderUsuariosModule(container) {
   const users = getAllUsers();
-  const isAdmin = currentUser?.perfil === 'administrador';
+  const isAdmin = isAdminUser(currentUser);
   const accessTreeData = buildUserAccessTreeData();
 
   if (userAccessTreeController?.destroy) {
@@ -4204,9 +4304,29 @@ function openProtocolModal() {
   }
 
   form.reset();
-  syncProtocolMunicipioOptions();
-  syncProtocolOrgaoOptions();
-  syncProtocolSetorOptions();
+  try {
+    syncProtocolMunicipioOptions();
+    syncProtocolOrgaoOptions();
+    syncProtocolSetorOptions();
+  } catch (error) {
+    console.error('Falha ao popular o formulário de protocolo.', error);
+  }
+
+  const municipioSelect = document.getElementById('protocolMunicipio');
+  const orgaoSelect = document.getElementById('protocolOrgao');
+  const setorSelect = document.getElementById('protocolSetor');
+
+  if (municipioSelect && !municipioSelect.value) {
+    municipioSelect.value = getMunicipiosList()[0] || '';
+  }
+  if (orgaoSelect && !orgaoSelect.value) {
+    orgaoSelect.value = getSecretariasByMunicipio(municipioSelect?.value || '')[0] || '';
+  }
+  if (setorSelect && !setorSelect.value) {
+    const setores = getSetoresByMunicipioAndSecretaria(municipioSelect?.value || '', orgaoSelect?.value || '');
+    setorSelect.value = setores[0] || '';
+  }
+
   modal.classList.add('active');
 }
 
@@ -4253,6 +4373,12 @@ function openDocumentPreviewModal(sourceUrl) {
     return;
   }
 
+  const isGoogleDriveUrl = /drive\.google\.com|docs\.google\.com|googleusercontent\.com/i.test(url);
+  if (isGoogleDriveUrl) {
+    window.open(url, '_blank', 'noopener,noreferrer');
+    return;
+  }
+
   const modal = document.getElementById('documentPreviewModal');
   const frame = document.getElementById('documentPreviewFrame');
   const openNew = document.getElementById('documentPreviewOpenNew');
@@ -4292,6 +4418,41 @@ function readFileAsText(file) {
     reader.onerror = () => reject(new Error('Falha ao ler arquivo texto.'));
     reader.readAsText(file);
   });
+}
+
+async function uploadFileToDrive(file, options = {}) {
+  if (!file) {
+    return '';
+  }
+
+  const rawDataUrl = await readFileAsDataUrl(file);
+  if (!rawDataUrl) {
+    return '';
+  }
+
+  const role = String(options.role || 'editor').trim() || 'editor';
+
+  try {
+    const response = await fetch('/api/drive/upload', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json; charset=utf-8' },
+      body: JSON.stringify({
+        filename: String(file.name || 'arquivo-anexo').trim(),
+        mimeType: String(file.type || 'application/octet-stream').trim(),
+        dataUrl: rawDataUrl,
+        role
+      })
+    });
+
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok || !payload?.ok) {
+      return rawDataUrl;
+    }
+
+    return payload.webViewLink || payload.downloadUrl || rawDataUrl;
+  } catch (error) {
+    return rawDataUrl;
+  }
 }
 
 function parseCsvRows(csvText) {
@@ -4697,6 +4858,10 @@ function getPrioridadeClass(prioridade) {
   return 'priority-padrao';
 }
 
+function getDemandStatusVisualClass(status) {
+  return String(status || '').trim().toUpperCase() === 'CONCLUÍDO' ? 'status-concluido' : '';
+}
+
 function getPrioridadeBorderClass(prioridade) {
   const key = String(prioridade || '').toLowerCase();
   if (key === 'urgente') return 'priority-border-urgente';
@@ -4746,7 +4911,7 @@ async function tramitarLicitacaoDemandFromModal(demandId) {
   }
 
   const demand = demandas[index];
-  const isAdmin = currentUser?.perfil === 'administrador';
+  const isAdmin = isAdminUser(currentUser);
   const isResponsible = String(currentUser?.nome || '').trim().toLowerCase() === String(demand?.responsavel || '').trim().toLowerCase();
   if (!isAdmin && !isResponsible) {
     window.alert('Somente o responsável atual ou o administrador pode tramitar este processo.');
@@ -4762,7 +4927,7 @@ async function tramitarLicitacaoDemandFromModal(demandId) {
 
   let docDataUrl = '';
   try {
-    docDataUrl = await readFileAsDataUrl(file);
+    docDataUrl = await uploadFileToDrive(file, { role: currentUser?.perfil === 'visualizador' ? 'viewer' : 'editor' });
   } catch (e) {
     window.alert('Não foi possível processar o documento anexado.');
     return;
@@ -4916,7 +5081,7 @@ function saveLicitacaoDemandFromModal(demandId) {
 }
 
 function toggleConcluidoAdjustmentPermission(demandId) {
-  if (String(currentUser?.perfil || '').trim().toLowerCase() !== 'administrador') {
+  if (!isAdminUser(currentUser)) {
     return;
   }
 
@@ -5039,7 +5204,7 @@ function openLicitacaoDetailsModal(demand) {
   const createdAtText = normalizedDemand.createdAt || createdDate.toLocaleDateString('pt-BR');
   const prioridade = normalizedDemand.prioridade || 'Média';
   const prioridadeClass = getPrioridadeClass(prioridade);
-  const isAdmin = currentUser?.perfil === 'administrador';
+  const isAdmin = isAdminUser(currentUser);
   const canFullEdit = isAdmin || isSaneador();
   const isConcluido = String(normalizedDemand?.status || '').trim().toUpperCase() === 'CONCLUÍDO';
   const saneadorUnlocked = Boolean(normalizedDemand?.allowSaneadorEditConcluido);
@@ -5159,9 +5324,13 @@ function openLicitacaoDetailsModal(demand) {
             </select>
           </div>
           <div class="detail-cell detail-cell-full"><span>Status</span>
-            <select id="editDemandStatus" ${readonlyAttr}>
-              ${statusOptionsByModalidade.map((status) => `<option value="${escapeHtml(status)}" ${status === statusAtual ? 'selected' : ''}>${escapeHtml(status)}</option>`).join('')}
-            </select>
+            <div class="detail-status-row">
+              <select id="editDemandStatus" ${readonlyAttr}>
+                ${statusOptionsByModalidade.map((status) => `<option value="${escapeHtml(status)}" ${status === statusAtual ? 'selected' : ''}>${escapeHtml(status)}</option>`).join('')}
+              </select>
+              ${isConcluido ? '<span class="detail-status-pill status-concluido">CONCLUÍDO</span>' : ''}
+            </div>
+            ${isConcluido ? '<p class="detail-concluido-note">Processo concluído. Apenas visualização e download de documentos; edições só com autorização do administrador.</p>' : ''}
           </div>
           <div class="detail-cell detail-cell-full"><span>Documento do status <small class="inline-muted">• obrigatório para tramitar</small></span>
             <input id="tramiteDocStatusInput" type="file" accept=".pdf,.doc,.docx,.odt,.txt,.png,.jpg,.jpeg" />
@@ -5313,12 +5482,17 @@ async function submitProtocolForm(event) {
   const orgao = document.getElementById('protocolOrgao')?.value?.trim() || '';
   const objeto = document.getElementById('protocolObjeto')?.value?.trim() || '';
   const setorDestino = document.getElementById('protocolSetor')?.value?.trim() || '';
+
+  if (!currentUser) {
+    window.alert('Faça login antes de protocolar uma demanda.');
+    return;
+  }
   const documentoInput = document.getElementById('protocolDocumento');
   const documento = documentoInput?.files?.[0] || null;
   let documentoInicialDataUrl = '';
   if (documento) {
     try {
-      documentoInicialDataUrl = await readFileAsDataUrl(documento);
+      documentoInicialDataUrl = await uploadFileToDrive(documento, { role: currentUser?.perfil === 'visualizador' ? 'viewer' : 'editor' });
     } catch (error) {
       window.alert('Não foi possível anexar o documento inicial selecionado.');
       return;
@@ -5327,20 +5501,21 @@ async function submitProtocolForm(event) {
   const isNaoLicitatoria = Boolean(document.getElementById('protocolNaoLicitatoria')?.checked);
 
   if (!municipio || !orgao || !objeto || !setorDestino) {
-    window.alert('Preencha município, órgão/entidade, objeto e setor de destino.');
+    window.alert('Preencha município, secretaria, objeto e setor da secretaria.');
     return;
   }
 
   const nup = buildNupNumber();
   const statusCatalog = normalizeStatusCatalog(state.statusCatalog);
+  const fallbackStatus = statusCatalog[0] || 'DFD';
   const statusInicial = isNaoLicitatoria
-    ? (statusCatalog.includes('OFÍCIO / MEMORANDO') ? 'OFÍCIO / MEMORANDO' : (statusCatalog.includes('ETP') ? 'ETP' : (statusCatalog[0] || 'DFD')))
-    : (statusCatalog.includes('ETP') ? 'ETP' : (statusCatalog[0] || 'DFD'));
+    ? (statusCatalog.includes('OFÍCIO / MEMORANDO') ? 'OFÍCIO / MEMORANDO' : (statusCatalog.includes('ETP') ? 'ETP' : fallbackStatus))
+    : (statusCatalog.includes('ETP') ? 'ETP' : fallbackStatus);
   const secretariaInicial = isNaoLicitatoria ? 'Gabinete do Prefeito' : orgao;
   const setorResponsavelBase = isNaoLicitatoria ? 'Chefia de Gabinete' : setorDestino;
   const assignment = findResponsibleAssignmentByDemandStatus({ municipio, secretaria: secretariaInicial, setorResponsavel: setorResponsavelBase, setorDestino }, statusInicial);
   const usuariosSetor = getUsuariosVinculadosAoSetor(setorResponsavelBase);
-  const responsavelDefault = assignment?.nome || usuariosSetor[0]?.nome || '-';
+  const responsavelDefault = assignment?.nome || usuariosSetor[0]?.nome || currentUser?.nome || '-';
   const setorResponsavelInicial = assignment?.setor || setorResponsavelBase;
   const modalidadeInicial = isNaoLicitatoria ? 'Adesão à ARP' : '-';
   const numeroOrdemInicial = '-';
@@ -5417,7 +5592,7 @@ function openProtocolSummaryModal(demand) {
 }
 
 function addSetorDestino() {
-  if (currentUser?.perfil !== 'administrador') {
+  if (!isAdminUser(currentUser)) {
     window.alert('Somente administradores podem alterar setores.');
     return;
   }
@@ -5445,7 +5620,7 @@ function addSetorDestino() {
 }
 
 function removeSetorDestino() {
-  if (currentUser?.perfil !== 'administrador') {
+  if (!isAdminUser(currentUser)) {
     window.alert('Somente administradores podem alterar setores.');
     return;
   }
@@ -5509,7 +5684,7 @@ function setupLicitacoesColumnResize(container) {
     return;
   }
 
-  const isAdmin = currentUser?.perfil === 'administrador';
+  const isAdmin = isAdminUser(currentUser);
   if (!isAdmin) {
     return;
   }
@@ -6175,7 +6350,7 @@ function deleteSupplierById(supplierId) {
 }
 
 function deleteLicitacaoDemandById(demandId) {
-  if (currentUser?.perfil !== 'administrador') {
+  if (!isAdminUser(currentUser)) {
     return;
   }
 
@@ -6199,7 +6374,7 @@ function buildEstruturaSecretariaKey(municipioNome, secretariaNome) {
 }
 
 function renderEstruturaMunicipalModule(container) {
-  const isAdmin = currentUser?.perfil === 'administrador';
+  const isAdmin = isAdminUser(currentUser);
   const municipalStructure = getMunicipalStructure();
 
   if (!municipalStructure.length) {
@@ -7031,7 +7206,7 @@ function renderModuleContent(moduleKey) {
     }));
     const setores = normalizeSetoresDestino(state.setoresDestino);
     state.setoresDestino = setores;
-    const isAdmin = currentUser?.perfil === 'administrador';
+    const isAdmin = isAdminUser(currentUser);
     const columnWidths = normalizeLicitacoesColumnWidths(state.licitacoesColumnWidths);
 
     const columns = [
@@ -7090,7 +7265,7 @@ function renderModuleContent(moduleKey) {
                   <td>${escapeHtml(item.objeto)}</td>
                   <td>${escapeHtml(item.responsavel)}</td>
                   <td>
-                    <div>${escapeHtml(item.status || 'DFD')}</div>
+                    <div class="licitacao-status-pill ${getDemandStatusVisualClass(item.status)}">${escapeHtml(item.status || 'DFD')}</div>
                     <small class="status-age">há ${escapeHtml(formatElapsedFromIso(item.statusUpdatedAt || item.createdAtIso))}</small>
                   </td>
                   <td>${escapeHtml(item.modalidade || '-')}</td>
@@ -7132,7 +7307,7 @@ function renderModuleContent(moduleKey) {
   }
 
   if (moduleKey === 'ritos') {
-    const isAdmin = currentUser?.perfil === 'administrador';
+    const isAdmin = isAdminUser(currentUser);
     const modalidades = normalizeModalidades(state.modalidades);
     state.modalidades = modalidades;
     const statusCatalog = normalizeStatusCatalog(state.statusCatalog);
@@ -7156,7 +7331,8 @@ function renderModuleContent(moduleKey) {
             <ul class="ritos-status-list">
               ${statusCatalog.map((status) => `
                 <li ${isAdmin ? `draggable="true" data-status-drag="${escapeHtml(status)}"` : ''}>
-                  ${isAdmin ? `<button class="ritos-status-label" type="button" data-status-edit="${escapeHtml(status)}" title="Editar status">${escapeHtml(status)}</button>` : `<span>${escapeHtml(status)}</span>`}
+                  ${isAdmin ? `<span class="ritos-status-drag-handle" title="Arrastar para reorganizar" aria-label="Arrastar para reorganizar">⋮⋮</span>` : ''}
+                  ${isAdmin ? `<button class="ritos-status-label" type="button" data-status-edit="${escapeHtml(status)}" title="Editar status">${escapeHtml(status)}</button>` : `<span class="ritos-status-label">${escapeHtml(status)}</span>`}
                   ${isAdmin ? `<button class="ritos-status-remove" type="button" data-status-remove="${escapeHtml(status)}" aria-label="Excluir status ${escapeHtml(status)}" title="Excluir status">🗑️</button>` : ''}
                 </li>
               `).join('')}
@@ -7210,18 +7386,28 @@ function renderModuleContent(moduleKey) {
 
     if (isAdmin) {
       container.querySelectorAll('[data-status-drag]').forEach((item) => {
-        item.addEventListener('dragstart', () => {
-          draggingCatalogStatus = String(item.getAttribute('data-status-drag') || '').trim();
+        item.addEventListener('dragstart', (event) => {
+          const status = String(item.getAttribute('data-status-drag') || '').trim();
+          draggingCatalogStatus = status;
           item.classList.add('is-dragging');
+          if (event.dataTransfer) {
+            event.dataTransfer.effectAllowed = 'move';
+            event.dataTransfer.setData('text/plain', status);
+          }
         });
 
         item.addEventListener('dragend', () => {
           draggingCatalogStatus = '';
           item.classList.remove('is-dragging');
+          item.classList.remove('is-drag-over');
         });
 
         item.addEventListener('dragover', (event) => {
           event.preventDefault();
+          if (!draggingCatalogStatus) {
+            return;
+          }
+          event.dataTransfer && (event.dataTransfer.dropEffect = 'move');
           item.classList.add('is-drag-over');
         });
 
@@ -7233,6 +7419,9 @@ function renderModuleContent(moduleKey) {
           event.preventDefault();
           item.classList.remove('is-drag-over');
           const targetStatus = String(item.getAttribute('data-status-drag') || '').trim();
+          if (!draggingCatalogStatus || !targetStatus) {
+            return;
+          }
           moveStatusCatalogItem(draggingCatalogStatus, targetStatus);
         });
       });
@@ -7243,7 +7432,13 @@ function renderModuleContent(moduleKey) {
       }
 
       container.querySelectorAll('[data-status-remove]').forEach((button) => {
-        button.addEventListener('click', () => {
+        button.addEventListener('mousedown', (event) => {
+          event.stopPropagation();
+        });
+
+        button.addEventListener('click', (event) => {
+          event.preventDefault();
+          event.stopPropagation();
           removeStatusFromCatalog(button.getAttribute('data-status-remove'));
         });
       });
@@ -7793,7 +7988,7 @@ function renderModuleContent(moduleKey) {
 
         if (selectedFile) {
           try {
-            uploadedDataUrl = await readFileAsDataUrl(selectedFile);
+            uploadedDataUrl = await uploadFileToDrive(selectedFile, { role: currentUser?.perfil === 'visualizador' ? 'viewer' : 'editor' });
             uploadedName = String(selectedFile.name || 'documento.pdf');
           } catch (error) {
             window.alert('Não foi possível anexar o PDF selecionado.');
@@ -8117,7 +8312,7 @@ function renderModuleContent(moduleKey) {
                     <h3>Prioridades dos Processos</h3>
                     <p>Distribuição dos processos filtrados por prioridade.</p>
                   </div>
-                  ${currentUser?.perfil === 'administrador' ? `
+                  ${isAdminUser(currentUser) ? `
                     <div class="dashboard-card-actions">
                       <button type="button" class="dashboard-card-drag-handle" title="Arrastar">↕</button>
                       <button type="button" data-panel-span-toggle>Expandir</button>
@@ -8148,7 +8343,7 @@ function renderModuleContent(moduleKey) {
                     <h3>Urgentes / Órgão</h3>
                     <p>Órgãos com processos urgentes dentro dos filtros atuais.</p>
                   </div>
-                  ${currentUser?.perfil === 'administrador' ? `
+                  ${isAdminUser(currentUser) ? `
                     <div class="dashboard-card-actions">
                       <button type="button" class="dashboard-card-drag-handle" title="Arrastar">↕</button>
                       <button type="button" data-panel-span-toggle>Expandir</button>
@@ -8183,7 +8378,7 @@ function renderModuleContent(moduleKey) {
                     <h3>Processos sob minha responsabilidade</h3>
                     <p>Somente os processos em que o usuário logado é o responsável.</p>
                   </div>
-                  ${currentUser?.perfil === 'administrador' ? `
+                  ${isAdminUser(currentUser) ? `
                     <div class="dashboard-card-actions">
                       <button type="button" class="dashboard-card-drag-handle" title="Arrastar">↕</button>
                       <button type="button" data-panel-span-toggle>Expandir</button>
@@ -8212,7 +8407,7 @@ function renderModuleContent(moduleKey) {
                     <h3>Treemap por modalidade</h3>
                     <p>Quantidade de processos por modalidade dentro dos filtros aplicados.</p>
                   </div>
-                  ${currentUser?.perfil === 'administrador' ? `
+                  ${isAdminUser(currentUser) ? `
                     <div class="dashboard-card-actions">
                       <button type="button" class="dashboard-card-drag-handle" title="Arrastar">↕</button>
                       <button type="button" data-panel-span-toggle>Expandir</button>
@@ -8242,7 +8437,7 @@ function renderModuleContent(moduleKey) {
                     <h3>Vigências Próximas do Término</h3>
                     <p>Instrumentos com até 60 dias para encerrar ou já encerrados.</p>
                   </div>
-                  ${currentUser?.perfil === 'administrador' ? `
+                  ${isAdminUser(currentUser) ? `
                     <div class="dashboard-card-actions">
                       <button type="button" class="dashboard-card-drag-handle" title="Arrastar">↕</button>
                       <button type="button" data-panel-span-toggle>Expandir</button>

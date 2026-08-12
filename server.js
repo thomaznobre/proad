@@ -1,12 +1,28 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const { Readable } = require('stream');
 const { URL } = require('url');
+const { google } = require('googleapis');
 
 let ImapFlow = null;
 let simpleParser = null;
 
 const ROOT_DIR = __dirname;
+
+function parseEnvValue(rawValue) {
+  let value = String(rawValue || '').trim();
+  if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+    value = value.slice(1, -1);
+  }
+
+  return value
+    .replace(/\\n/g, '\n')
+    .replace(/\\r/g, '\r')
+    .replace(/\\t/g, '\t')
+    .replace(/\"/g, '"')
+    .replace(/\\'/g, "'");
+}
 
 function loadDotEnvFile() {
   const envPath = path.join(ROOT_DIR, '.env');
@@ -27,7 +43,7 @@ function loadDotEnvFile() {
     }
 
     const key = trimmed.slice(0, separatorIndex).trim();
-    const value = trimmed.slice(separatorIndex + 1).trim();
+    const value = parseEnvValue(trimmed.slice(separatorIndex + 1));
     if (!key || Object.prototype.hasOwnProperty.call(process.env, key)) {
       return;
     }
@@ -50,6 +66,14 @@ const IMAP_PASS = String(process.env.IMAP_PASS || '').trim();
 const IMAP_MAILBOX = String(process.env.IMAP_MAILBOX || 'INBOX').trim();
 const IMAP_POLL_INTERVAL_MS = Number(process.env.IMAP_POLL_INTERVAL_MS || 60000);
 const IMAP_MARK_SEEN = String(process.env.IMAP_MARK_SEEN || 'true').toLowerCase() !== 'false';
+const COMMUNICATION_RETENTION_DAYS = Number(process.env.COMMUNICATION_RETENTION_DAYS || 7);
+const GOOGLE_DRIVE_ENABLED = String(process.env.GOOGLE_DRIVE_ENABLED || 'false').toLowerCase() === 'true';
+const GOOGLE_DRIVE_CLIENT_EMAIL = String(process.env.GOOGLE_DRIVE_CLIENT_EMAIL || '').trim();
+const GOOGLE_DRIVE_PRIVATE_KEY = String(process.env.GOOGLE_DRIVE_PRIVATE_KEY || '').trim().replace(/\\n/g, '\n');
+const GOOGLE_DRIVE_FOLDER_NAME = String(process.env.GOOGLE_DRIVE_FOLDER_NAME || 'SEBAX').trim();
+const GOOGLE_DRIVE_FOLDER_ID = String(process.env.GOOGLE_DRIVE_FOLDER_ID || '1JHA9WmMAgrvQatTO-y3ySkbsAJU-utOd').trim();
+const GOOGLE_DRIVE_TARGET_EMAIL = String(process.env.GOOGLE_DRIVE_TARGET_EMAIL || 'licitacoesbomconselhope@gmail.com').trim();
+const GOOGLE_DRIVE_IMPERSONATE_EMAIL = String(process.env.GOOGLE_DRIVE_IMPERSONATE_EMAIL || '').trim();
 
 const SEEDED_DIRECTORY_USERS = [
   { id: 'user-joao-paulo-oliveira', nome: 'João Paulo Oliveira', email: 'joaopaulooliveira@fcaadvogados.com.br', perfil: 'usuario' },
@@ -76,6 +100,9 @@ const MIME_TYPES = {
   '.ico': 'image/x-icon'
 };
 
+let driveServiceCache = null;
+let driveServicePromise = null;
+
 function ensureCommunicationsStore() {
   if (!fs.existsSync(DATA_DIR)) {
     fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -100,6 +127,128 @@ function loadImapDependencies() {
   }
 }
 
+async function getDriveService() {
+  if (driveServiceCache) {
+    return driveServiceCache;
+  }
+
+  if (driveServicePromise) {
+    return driveServicePromise;
+  }
+
+  if (!GOOGLE_DRIVE_ENABLED || !GOOGLE_DRIVE_CLIENT_EMAIL || !GOOGLE_DRIVE_PRIVATE_KEY) {
+    return null;
+  }
+
+  driveServicePromise = (async () => {
+    const jwtConfig = {
+      email: GOOGLE_DRIVE_CLIENT_EMAIL,
+      key: GOOGLE_DRIVE_PRIVATE_KEY,
+      scopes: ['https://www.googleapis.com/auth/drive']
+    };
+
+    if (GOOGLE_DRIVE_IMPERSONATE_EMAIL) {
+      jwtConfig.subject = GOOGLE_DRIVE_IMPERSONATE_EMAIL;
+    }
+
+    const auth = new google.auth.JWT(jwtConfig);
+
+    await auth.authorize();
+    const service = google.drive({ version: 'v3', auth });
+    driveServiceCache = service;
+    return service;
+  })().catch((error) => {
+    driveServicePromise = null;
+    throw error;
+  });
+
+  return driveServicePromise;
+}
+
+async function ensureDriveFolder(driveService, folderName, folderId) {
+  if (folderId) {
+    return { id: folderId, name: folderName || 'Pasta do Drive' };
+  }
+
+  const escapedName = String(folderName || '').replace(/'/g, "\\'");
+  const response = await driveService.files.list({
+    q: `name='${escapedName}' and mimeType='application/vnd.google-apps.folder' and trashed=false`,
+    fields: 'files(id,name)',
+    supportsAllDrives: true
+  });
+
+  const existing = Array.isArray(response?.data?.files) ? response.data.files.find((file) => String(file?.name || '').trim() === String(folderName || '').trim()) : null;
+  if (existing) {
+    return existing;
+  }
+
+  const created = await driveService.files.create({
+    requestBody: {
+      name: folderName,
+      mimeType: 'application/vnd.google-apps.folder'
+    },
+    fields: 'id,name'
+  });
+
+  return created?.data || null;
+}
+
+async function uploadFileToGoogleDrive({ filename, mimeType, dataUrl, role }) {
+  const driveService = await getDriveService();
+  if (!driveService) {
+    return { ok: false, reason: 'missing-config' };
+  }
+
+  try {
+    const folder = await ensureDriveFolder(driveService, GOOGLE_DRIVE_FOLDER_NAME, GOOGLE_DRIVE_FOLDER_ID);
+    const dataUrlParts = String(dataUrl || '').split(',');
+    const base64Payload = dataUrlParts.length > 1 ? dataUrlParts[1] : '';
+    const buffer = Buffer.from(base64Payload, 'base64');
+
+    const uploadResponse = await driveService.files.create({
+      requestBody: {
+        name: String(filename || 'arquivo-anexo').trim() || 'arquivo-anexo',
+        parents: folder?.id ? [folder.id] : []
+      },
+      media: {
+        mimeType: String(mimeType || 'application/octet-stream').trim() || 'application/octet-stream',
+        body: Readable.from(buffer)
+      },
+      fields: 'id,name,webViewLink,webContentLink'
+    });
+
+    const fileId = String(uploadResponse?.data?.id || '').trim();
+    if (!fileId) {
+      return { ok: false, reason: 'upload-failed' };
+    }
+
+    const targetRole = String(role || '').toLowerCase() === 'reader' || String(role || '').toLowerCase() === 'viewer' ? 'reader' : 'writer';
+    try {
+      await driveService.permissions.create({
+        fileId,
+        requestBody: {
+          type: 'user',
+          role: targetRole,
+          emailAddress: GOOGLE_DRIVE_TARGET_EMAIL
+        },
+        fields: 'id'
+      });
+    } catch (permissionError) {
+      // no-op: o arquivo já é salvo mesmo sem compartilhamento adicional
+    }
+
+    return {
+      ok: true,
+      fileId,
+      webViewLink: String(uploadResponse?.data?.webViewLink || uploadResponse?.data?.alternateLink || '').trim(),
+      downloadUrl: String(uploadResponse?.data?.webContentLink || '').trim(),
+      folderId: folder?.id || ''
+    };
+  } catch (error) {
+    return { ok: false, reason: 'upload-error', error: error.message };
+  }
+}
+
 function normalizeExternalSyncState(externalSync) {
   const normalized = externalSync && typeof externalSync === 'object' ? externalSync : {};
   return {
@@ -113,6 +262,29 @@ function normalizeExternalSyncState(externalSync) {
   };
 }
 
+function pruneCommunicationRecords(store) {
+  const cutoff = Date.now() - COMMUNICATION_RETENTION_DAYS * 24 * 60 * 60 * 1000;
+
+  store.emails = (Array.isArray(store?.emails) ? store.emails : [])
+    .filter((email) => {
+      const sentAt = new Date(email?.sentAt || 0).getTime();
+      return Number.isFinite(sentAt) && sentAt >= cutoff;
+    })
+    .sort((a, b) => new Date(b.sentAt).getTime() - new Date(a.sentAt).getTime());
+
+  store.rooms = (Array.isArray(store?.rooms) ? store.rooms : []).map((room) => ({
+    ...room,
+    messages: (Array.isArray(room?.messages) ? room.messages : [])
+      .filter((message) => {
+        const sentAt = new Date(message?.sentAt || 0).getTime();
+        return Number.isFinite(sentAt) && sentAt >= cutoff;
+      })
+      .sort((a, b) => new Date(a.sentAt).getTime() - new Date(b.sentAt).getTime())
+  })).filter((room) => room.messages.length || new Date(room?.createdAt || 0).getTime() >= cutoff);
+
+  return store;
+}
+
 function normalizeStore(store) {
   const normalized = {
     emails: Array.isArray(store?.emails) ? store.emails : [],
@@ -120,7 +292,7 @@ function normalizeStore(store) {
     presence: Array.isArray(store?.presence) ? store.presence : [],
     externalSync: normalizeExternalSyncState(store?.externalSync)
   };
-  return normalized;
+  return pruneCommunicationRecords(normalized);
 }
 
 function readCommunicationsStore() {
@@ -143,6 +315,7 @@ function readCommunicationsStore() {
 
 function writeCommunicationsStore(store) {
   ensureCommunicationsStore();
+  pruneCommunicationRecords(store);
   fs.writeFileSync(COMMUNICATIONS_FILE, JSON.stringify(store, null, 2));
 }
 
@@ -446,6 +619,23 @@ async function handleApi(request, response, url) {
 
   if (request.method === 'POST' && url.pathname === '/api/communications/external/sync') {
     const result = await pollExternalEmailsOnce();
+    sendJson(response, result.ok ? 200 : 500, result);
+    return true;
+  }
+
+  if (request.method === 'POST' && url.pathname === '/api/drive/upload') {
+    const body = await collectBody(request);
+    const dataUrl = String(body.dataUrl || '').trim();
+    const filename = String(body.filename || 'arquivo-anexo').trim();
+    const mimeType = String(body.mimeType || 'application/octet-stream').trim();
+    const role = String(body.role || 'editor').trim();
+
+    if (!dataUrl) {
+      sendJson(response, 400, { error: 'Arquivo é obrigatório.' });
+      return true;
+    }
+
+    const result = await uploadFileToGoogleDrive({ filename, mimeType, dataUrl, role });
     sendJson(response, result.ok ? 200 : 500, result);
     return true;
   }

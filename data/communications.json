@@ -116,13 +116,160 @@
       "fromName": "Administração FCA Advogados",
       "fromEmail": "administracao@fcaadvogados.com.br",
       "subject": "Boas-vindas ao correio corporativo",
-      "body": "Olá, Luís Ferrrari.\n\nSeu e-mail corporativo luisferrrari@fcaadvogados.com.br já está liberado no PROAD com senha provisória 123*. O CPF será preenchido depois pelo administrador.",
+      "body": "Olá, Luís Ferrari.\n\nSeu e-mail corporativo luisferrrari@fcaadvogados.com.br já está liberado no PROAD com senha provisória 123*. O CPF será preenchido depois pelo administrador.",
       "sentAt": "2026-08-02T15:46:38.169Z",
       "readBy": []
     }
   ],
-  "rooms": [],
+  "rooms": [
+    {
+      "id": "1786040217904-448354e4636fb8",
+      "name": "Equipe",
+      "createdBy": "admin-thomaz-nobre",
+      "createdAt": "2026-08-06T18:16:57.909Z",
+      "memberIds": [
+        "admin-thomaz-nobre",
+        "user-thomaz-nobre-corporativo",
+        "user-vitor-cavalcante",
+        "user-joao-paulo-oliveira"
+      ],
+      "messages": [
+        {
+          "id": "1786044354940-9af7f43e8bceb8",
+          "authorId": "user-thomaz-nobre-corporativo",
+          "authorName": "Thomaz Nobre",
+          "body": "Olá, boa tarde.",
+          "sentAt": "2026-08-06T19:25:54.941Z",
+          "mentionUserIds": [],
+          "seenBy": [
+            "user-thomaz-nobre-corporativo"
+          ]
+        },
+        {
+          "id": "1786044373478-f8f0104d09bf1",
+          "authorId": "user-thomaz-nobre-corporativo",
+          "authorName": "Thomaz Nobre",
+          "body": "oi  @João Paulo Oliveira",
+          "sentAt": "2026-08-06T19:26:13.478Z",
+          "mentionUserIds": [
+            "user-joao-paulo-oliveira"
+          ],
+          "seenBy": [
+            "user-thomaz-nobre-corporativo"
+          ]
+        },
+        {
+          "id": "1786044396798-60237c0449529",
+          "authorId": "user-thomaz-nobre-corporativo",
+          "authorName": "Thomaz Nobre",
+          "body": "@Vitor Cavalcante e aí",
+          "sentAt": "2026-08-06T19:26:36.798Z",
+          "mentionUserIds": [
+            "user-vitor-cavalcante"
+          ],
+          "seenBy": [
+            "user-thomaz-nobre-corporativo"
+          ]
+        },
+        {
+          "id": "1786044425243-3f6d374f7c2ee8",
+          "authorId": "user-vitor-cavalcante",
+          "authorName": "Vitor Cavalcante",
+          "body": "Olá!",
+          "sentAt": "2026-08-06T19:27:05.243Z",
+          "mentionUserIds": [],
+          "seenBy": [
+            "user-vitor-cavalcante"
+          ]
+        },
+        {
+          "id": "1786044426126-3f0344c09a404",
+          "authorId": "user-vitor-cavalcante",
+          "authorName": "Vitor Cavalcante",
+          "body": "Olá!",
+          "sentAt": "2026-08-06T19:27:06.126Z",
+          "mentionUserIds": [],
+          "seenBy": [
+            "user-vitor-cavalcante"
+          ]
+        },
+        {
+          "id": "1786044433966-de75c1bc37641",
+          "authorId": "user-joao-paulo-oliveira",
+          "authorName": "João Paulo Oliveira",
+          "body": "oi",
+          "sentAt": "2026-08-06T19:27:13.966Z",
+          "mentionUserIds": [],
+          "seenBy": [
+            "user-joao-paulo-oliveira"
+          ]
+        },
+        {
+          "id": "1786044442779-1ff263fd092c18",
+          "authorId": "user-vitor-cavalcante",
+          "authorName": "Vitor Cavalcante",
+          "body": "Meu sobrenome está errado aqui.",
+          "sentAt": "2026-08-06T19:27:22.779Z",
+          "mentionUserIds": [],
+          "seenBy": [
+            "user-vitor-cavalcante"
+          ]
+        },
+        {
+          "id": "1786044443159-1b810bb40d926",
+          "authorId": "user-vitor-cavalcante",
+          "authorName": "Vitor Cavalcante",
+          "body": "Meu sobrenome está errado aqui.",
+          "sentAt": "2026-08-06T19:27:23.159Z",
+          "mentionUserIds": [],
+          "seenBy": [
+            "user-vitor-cavalcante"
+          ]
+        },
+        {
+          "id": "1786044595801-d01549a8cc47b8",
+          "authorId": "admin-thomaz-nobre",
+          "authorName": "Thomaz Nobre",
+          "body": "@João Paulo Oliveira tudo certo?",
+          "sentAt": "2026-08-06T19:29:55.801Z",
+          "mentionUserIds": [
+            "user-joao-paulo-oliveira"
+          ],
+          "seenBy": [
+            "admin-thomaz-nobre"
+          ]
+        }
+      ]
+    }
+  ],
   "presence": [
+    {
+      "userId": "user-vitor-cavalcante",
+      "nome": "Vitor Cavalcante",
+      "email": "vitorcavalcante@fcaadvogados.com.br",
+      "perfil": "usuario",
+      "setores": [],
+      "isOnline": true,
+      "lastSeenAt": "2026-08-06T19:26:58.515Z"
+    },
+    {
+      "userId": "user-joao-paulo-oliveira",
+      "nome": "João Paulo Oliveira",
+      "email": "joaopaulooliveira@fcaadvogados.com.br",
+      "perfil": "usuario",
+      "setores": [],
+      "isOnline": true,
+      "lastSeenAt": "2026-08-06T19:27:31.700Z"
+    },
+    {
+      "userId": "user-thomaz-nobre-corporativo",
+      "nome": "Thomaz Nobre",
+      "email": "thomaznobre@fcaadvogados.com.br",
+      "perfil": "usuario",
+      "setores": [],
+      "isOnline": false,
+      "lastSeenAt": "2026-08-06T19:29:41.016Z"
+    },
     {
       "userId": "admin-thomaz-nobre",
       "nome": "Thomaz Nobre",
@@ -130,14 +277,14 @@
       "perfil": "administrador",
       "setores": [],
       "isOnline": true,
-      "lastSeenAt": "2026-08-05T04:46:30.163Z"
+      "lastSeenAt": "2026-08-06T19:29:49.083Z"
     }
   ],
   "externalSync": {
     "seenMessageIds": [],
-    "lastRunAt": "2026-08-05T05:23:45.177Z",
-    "lastError": "Command failed",
+    "lastRunAt": "2026-08-06T17:35:05.641Z",
+    "lastError": "Failed to establish connection in required time",
     "importedCount": 0,
-    "configured": true
+    "configured": false
   }
 }
