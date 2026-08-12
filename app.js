@@ -7389,8 +7389,13 @@ function renderModuleContent(moduleKey) {
           </div>
 
           <div class="ritos-matrix-card">
-            <h3>Status por modalidade</h3>
-            <div class="ritos-visibility-panel">
+            <div class="ritos-matrix-header">
+              <h3>Status por modalidade</h3>
+              <button type="button" class="ritos-visibility-toggle" data-ritos-visibility-toggle aria-expanded="false" aria-controls="ritosVisibilityPanel" aria-label="Escolher modalidades visíveis">
+                ☰
+              </button>
+            </div>
+            <div id="ritosVisibilityPanel" class="ritos-visibility-panel" hidden>
               <div class="ritos-visibility-label">Modalidades visíveis</div>
               <div class="ritos-visibility-dropdown">
                 <label class="ritos-visibility-option">
@@ -7548,6 +7553,17 @@ function renderModuleContent(moduleKey) {
 
       bindDirectClick('#addStatusCatalogBtn', () => addStatusToCatalog());
       bindDirectClick('#addModalidadeBtn', () => addModalidadeToRitos());
+      bindDirectClick('[data-ritos-visibility-toggle]', (event) => {
+        const button = event.currentTarget;
+        const panel = document.getElementById('ritosVisibilityPanel');
+        if (!panel) {
+          return;
+        }
+
+        const nextOpen = panel.hidden;
+        panel.hidden = !nextOpen;
+        button.setAttribute('aria-expanded', String(nextOpen));
+      });
       bindDirectChange('[data-ritos-visibility-all]', (event) => {
         const checkbox = event.currentTarget;
         state.ritosModalidadesVisiveis = checkbox.checked ? null : [];
@@ -8367,7 +8383,7 @@ function renderModuleContent(moduleKey) {
       <div class="filter-group filter-dropdown-group">
         <label>${escapeHtml(label)}</label>
         <div class="checkbox-dropdown panel-filter-dropdown" data-panel-filter-dropdown="${escapeHtml(key)}">
-          <button type="button" class="dropdown-trigger-btn" data-panel-filter-trigger>${escapeHtml(triggerLabel)} ▼</button>
+          <button type="button" class="dropdown-trigger-btn" data-panel-filter-trigger aria-label="Abrir filtro de ${escapeHtml(label)}">${escapeHtml(triggerLabel)} ☰</button>
           <div class="dropdown-panel" data-panel-filter-panel>
             <label class="cb-option all-option"><input type="checkbox" data-panel-filter-all ${allSelected ? 'checked' : ''}> Todos</label>
             ${options.length ? options.map((option) => `<label class="cb-option"><input type="checkbox" data-panel-filter-option value="${escapeHtml(option)}" ${selectedValues.includes(option) ? 'checked' : ''}> ${escapeHtml(option)}</label>`).join('') : '<p class="messages-empty">Sem opções disponíveis.</p>'}
@@ -8674,12 +8690,12 @@ function updateUrgentChart() {
   var mCbs = document.querySelectorAll('.urgent-municipio-cb');
   var mChecked = document.querySelectorAll('.urgent-municipio-cb:checked').length;
   var mTrigger = document.getElementById('urgentMunicipioTrigger');
-  if (mTrigger) mTrigger.textContent = (mChecked === mCbs.length ? 'Todos' : mChecked + '/' + mCbs.length) + ' ▼';
+  if (mTrigger) mTrigger.textContent = (mChecked === mCbs.length ? 'Todos' : mChecked + '/' + mCbs.length) + ' ☰';
 
   var oCbs = document.querySelectorAll('.urgent-orgao-cb');
   var oChecked = document.querySelectorAll('.urgent-orgao-cb:checked').length;
   var oTrigger = document.getElementById('urgentOrgaoTrigger');
-  if (oTrigger) oTrigger.textContent = (oChecked === oCbs.length ? 'Todos' : oChecked + '/' + oCbs.length) + ' ▼';
+  if (oTrigger) oTrigger.textContent = (oChecked === oCbs.length ? 'Todos' : oChecked + '/' + oCbs.length) + ' ☰';
 }
 
 function renderProcessList(activeProcess) {
