@@ -1280,6 +1280,7 @@ let editingContratoRecord = false;
 let selectedCorporateEmailId = null;
 let selectedChatRoomId = null;
 let selectedChatMemberIds = new Set();
+let selectedCommunicationTab = 'emails';
 let painelCardDraggingKey = '';
 let communicationStore = { emails: [], rooms: [], presence: [] };
 let communicationDataLoaded = false;
@@ -3294,6 +3295,7 @@ async function renderComunicacaoModule(container) {
   const roomParticipants = activeRoom ? getUsersByIds(activeRoom.memberIds) : [];
   const isAdmin = isAdminUser(currentUser);
   const availableRecipients = getAllUsers().filter((user) => user.id !== currentUser?.id).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+  const communicationTab = selectedCommunicationTab === 'chat' ? 'chat' : 'emails';
 
   container.innerHTML = `
     <section class="panel comunicacao-panel">
@@ -3305,154 +3307,172 @@ async function renderComunicacaoModule(container) {
         </div>
       </div>
 
-      <div class="comunicacao-top-grid">
-        <div class="comunicacao-card comunicacao-inbox-card">
-          <div class="comunicacao-card-head">
-            <div>
-              <h3>E-mails recebidos</h3>
-              <p>${emails.length} item(ns) na caixa de entrada</p>
-            </div>
-          </div>
-          <div class="comunicacao-inbox-list">
-            ${emails.length ? emails.map((email) => {
-              const isUnread = !email.readBy.includes(currentUser?.id);
-              return `
-                <button class="comunicacao-email-item ${selectedCorporateEmailId === email.id ? 'active' : ''} ${isUnread ? 'unread' : ''}" type="button" data-email-id="${escapeHtml(email.id)}">
-                  <div class="comunicacao-email-item-top">
-                    <strong>${escapeHtml(email.subject)}</strong>
-                    ${isUnread ? '<span class="badge">Novo</span>' : ''}
-                  </div>
-                  <span>${escapeHtml(email.fromName)}</span>
-                  <small>${escapeHtml(new Date(email.sentAt).toLocaleString('pt-BR'))}</small>
-                </button>
-              `;
-            }).join('') : '<div class="empty-state">Nenhum e-mail corporativo disponível para este usuário.</div>'}
-          </div>
-        </div>
+      <div class="comunicacao-tabs" role="tablist" aria-label="Comunicação interna">
+        <button type="button" class="comunicacao-tab-btn ${communicationTab === 'emails' ? 'active' : ''}" data-comunicacao-tab="emails" role="tab" aria-selected="${communicationTab === 'emails'}">
+          E-mails recebidos
+        </button>
+        <button type="button" class="comunicacao-tab-btn ${communicationTab === 'chat' ? 'active' : ''}" data-comunicacao-tab="chat" role="tab" aria-selected="${communicationTab === 'chat'}">
+          Chat com salas administradas
+        </button>
+      </div>
 
-        <div class="comunicacao-card comunicacao-detail-card">
-          ${selectedEmail ? `
+      ${communicationTab === 'emails' ? `
+        <div class="comunicacao-top-grid">
+          <div class="comunicacao-card comunicacao-inbox-card">
             <div class="comunicacao-card-head">
               <div>
-                <h3>${escapeHtml(selectedEmail.subject)}</h3>
-                <p>${escapeHtml(selectedEmail.fromName)} • ${escapeHtml(new Date(selectedEmail.sentAt).toLocaleString('pt-BR'))}</p>
+                <h3>E-mails recebidos</h3>
+                <p>${emails.length} item(ns) na caixa de entrada</p>
               </div>
             </div>
-            <div class="comunicacao-email-body">${escapeHtml(selectedEmail.body).replace(/\n/g, '<br />')}</div>
-          ` : '<div class="empty-state">Selecione um e-mail para abrir o conteúdo completo.</div>'}
-          <div class="comunicacao-inline-mail-form">
-            <h4>Novo e-mail interno</h4>
-            <div class="usuario-form-grid">
-              <div class="form-group">
-                <label>Destinatário</label>
-                <select id="corporateEmailRecipient">
-                  <option value="">Selecione</option>
-                  ${availableRecipients.map((user) => `<option value="${escapeHtml(user.id)}" data-email="${escapeHtml(user.email)}">${escapeHtml(user.nome)} (${escapeHtml(user.email)})</option>`).join('')}
-                </select>
-              </div>
-              <div class="form-group">
-                <label>Assunto</label>
-                <input id="corporateEmailSubject" type="text" placeholder="Assunto do e-mail" />
-              </div>
-              <div class="form-group" style="grid-column: 1 / -1;">
-                <label>Mensagem</label>
-                <textarea id="corporateEmailBody" rows="4" placeholder="Escreva a mensagem institucional."></textarea>
-              </div>
+            <div class="comunicacao-inbox-list">
+              ${emails.length ? emails.map((email) => {
+                const isUnread = !email.readBy.includes(currentUser?.id);
+                return `
+                  <button class="comunicacao-email-item ${selectedCorporateEmailId === email.id ? 'active' : ''} ${isUnread ? 'unread' : ''}" type="button" data-email-id="${escapeHtml(email.id)}">
+                    <div class="comunicacao-email-item-top">
+                      <strong>${escapeHtml(email.subject)}</strong>
+                      ${isUnread ? '<span class="badge">Novo</span>' : ''}
+                    </div>
+                    <span>${escapeHtml(email.fromName)}</span>
+                    <small>${escapeHtml(new Date(email.sentAt).toLocaleString('pt-BR'))}</small>
+                  </button>
+                `;
+              }).join('') : '<div class="empty-state">Nenhum e-mail corporativo disponível para este usuário.</div>'}
             </div>
-            <div class="form-actions">
-              <button id="sendCorporateEmailBtn" class="btn-save" type="button">Enviar e-mail</button>
+          </div>
+
+          <div class="comunicacao-card comunicacao-detail-card">
+            ${selectedEmail ? `
+              <div class="comunicacao-card-head">
+                <div>
+                  <h3>${escapeHtml(selectedEmail.subject)}</h3>
+                  <p>${escapeHtml(selectedEmail.fromName)} • ${escapeHtml(new Date(selectedEmail.sentAt).toLocaleString('pt-BR'))}</p>
+                </div>
+              </div>
+              <div class="comunicacao-email-body">${escapeHtml(selectedEmail.body).replace(/\n/g, '<br />')}</div>
+            ` : '<div class="empty-state">Selecione um e-mail para abrir o conteúdo completo.</div>'}
+            <div class="comunicacao-inline-mail-form">
+              <h4>Novo e-mail interno</h4>
+              <div class="usuario-form-grid">
+                <div class="form-group">
+                  <label>Destinatário</label>
+                  <select id="corporateEmailRecipient">
+                    <option value="">Selecione</option>
+                    ${availableRecipients.map((user) => `<option value="${escapeHtml(user.id)}" data-email="${escapeHtml(user.email)}">${escapeHtml(user.nome)} (${escapeHtml(user.email)})</option>`).join('')}
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label>Assunto</label>
+                  <input id="corporateEmailSubject" type="text" placeholder="Assunto do e-mail" />
+                </div>
+                <div class="form-group" style="grid-column: 1 / -1;">
+                  <label>Mensagem</label>
+                  <textarea id="corporateEmailBody" rows="4" placeholder="Escreva a mensagem institucional."></textarea>
+                </div>
+              </div>
+              <div class="form-actions">
+                <button id="sendCorporateEmailBtn" class="btn-save" type="button">Enviar e-mail</button>
+              </div>
             </div>
           </div>
         </div>
-      </div>
-
-      <div class="comunicacao-card comunicacao-chat-card">
-        <div class="comunicacao-card-head comunicacao-chat-head">
-          <div>
-            <h3>Chat com salas administradas</h3>
-            <p>${isAdmin ? 'Selecione usuários logados, monte o grupo e crie a sala.' : 'Você visualiza apenas as salas e os usuários do grupo ao qual pertence.'}</p>
+      ` : `
+        <div class="comunicacao-card comunicacao-chat-card">
+          <div class="comunicacao-card-head comunicacao-chat-head">
+            <div>
+              <h3>Chat com salas administradas</h3>
+              <p>${isAdmin ? 'Selecione usuários logados, monte o grupo e crie a sala.' : 'Você visualiza apenas as salas e os usuários do grupo ao qual pertence.'}</p>
+            </div>
+            ${isAdmin ? `
+              <div class="comunicacao-room-create">
+                <input id="chatRoomNameInput" type="text" placeholder="Nome da sala (opcional)" />
+                <button id="createChatRoomBtn" class="btn-save" type="button">Criar sala</button>
+              </div>
+            ` : ''}
           </div>
-          ${isAdmin ? `
-            <div class="comunicacao-room-create">
-              <input id="chatRoomNameInput" type="text" placeholder="Nome da sala (opcional)" />
-              <button id="createChatRoomBtn" class="btn-save" type="button">Criar sala</button>
+
+          <div class="comunicacao-room-list">
+            ${rooms.length ? rooms.map((room) => {
+              const unreadMentions = countUnreadMentions(room, currentUser?.id);
+              return `
+                <button type="button" class="comunicacao-room-pill ${selectedChatRoomId === room.id ? 'active' : ''}" data-room-id="${escapeHtml(room.id)}">
+                  <span>${escapeHtml(room.name)}</span>
+                  ${unreadMentions ? `<strong>${unreadMentions} menção(ões)</strong>` : ''}
+                </button>
+              `;
+            }).join('') : '<div class="empty-state">Nenhuma sala disponível ainda.</div>'}
+          </div>
+
+          ${isAdmin && activeRoom ? `
+            <div class="comunicacao-room-admin-bar">
+              <input id="editChatRoomNameInput" type="text" value="${escapeHtml(activeRoom.name)}" placeholder="Renomear sala" />
+              <button id="saveChatRoomBtn" class="btn-save" type="button">Salvar sala</button>
+              <button id="deleteChatRoomBtn" class="btn-table-delete" type="button">Excluir sala</button>
             </div>
           ` : ''}
-        </div>
 
-        <div class="comunicacao-room-list">
-          ${rooms.length ? rooms.map((room) => {
-            const unreadMentions = countUnreadMentions(room, currentUser?.id);
-            return `
-              <button type="button" class="comunicacao-room-pill ${selectedChatRoomId === room.id ? 'active' : ''}" data-room-id="${escapeHtml(room.id)}">
-                <span>${escapeHtml(room.name)}</span>
-                ${unreadMentions ? `<strong>${unreadMentions} menção(ões)</strong>` : ''}
-              </button>
-            `;
-          }).join('') : '<div class="empty-state">Nenhuma sala disponível ainda.</div>'}
-        </div>
-
-        ${isAdmin && activeRoom ? `
-          <div class="comunicacao-room-admin-bar">
-            <input id="editChatRoomNameInput" type="text" value="${escapeHtml(activeRoom.name)}" placeholder="Renomear sala" />
-            <button id="saveChatRoomBtn" class="btn-save" type="button">Salvar sala</button>
-            <button id="deleteChatRoomBtn" class="btn-table-delete" type="button">Excluir sala</button>
+          <div class="comunicacao-online-strip">
+            ${onlineUsers.length ? onlineUsers.map((user) => {
+              const isChecked = isAdmin ? (user.id === currentUser?.id || selectedChatMemberIds.has(user.id)) : true;
+              return `
+                <label class="comunicacao-user-chip ${isChecked ? 'selected' : ''} ${user.id === currentUser?.id ? 'self' : ''}">
+                  <input type="checkbox" data-chat-member-id="${escapeHtml(user.id)}" ${isChecked ? 'checked' : ''} ${(isAdmin && user.id !== currentUser?.id) ? '' : 'disabled'} />
+                  <span class="comunicacao-user-status ${user.id === currentUser?.id || user.isOnline ? 'online' : ''}"></span>
+                  <strong>${escapeHtml(user.nome)}</strong>
+                  <small>${escapeHtml(getPerfilLabel(user.perfil))}</small>
+                </label>
+              `;
+            }).join('') : '<div class="empty-state">Nenhum usuário logado neste momento.</div>'}
           </div>
-        ` : ''}
 
-        <div class="comunicacao-online-strip">
-          ${onlineUsers.length ? onlineUsers.map((user) => {
-            const isChecked = isAdmin ? (user.id === currentUser?.id || selectedChatMemberIds.has(user.id)) : true;
-            return `
-              <label class="comunicacao-user-chip ${isChecked ? 'selected' : ''} ${user.id === currentUser?.id ? 'self' : ''}">
-                <input type="checkbox" data-chat-member-id="${escapeHtml(user.id)}" ${isChecked ? 'checked' : ''} ${(isAdmin && user.id !== currentUser?.id) ? '' : 'disabled'} />
-                <span class="comunicacao-user-status ${user.id === currentUser?.id || user.isOnline ? 'online' : ''}"></span>
-                <strong>${escapeHtml(user.nome)}</strong>
-                <small>${escapeHtml(getPerfilLabel(user.perfil))}</small>
-              </label>
-            `;
-          }).join('') : '<div class="empty-state">Nenhum usuário logado neste momento.</div>'}
-        </div>
-
-        <div class="comunicacao-chat-board">
-          ${activeRoom ? `
-            <div class="comunicacao-room-meta">
-              <div>
-                <h4>${escapeHtml(activeRoom.name)}</h4>
-                <p>${roomParticipants.map((user) => escapeHtml(user.nome)).join(', ')}</p>
+          <div class="comunicacao-chat-board">
+            ${activeRoom ? `
+              <div class="comunicacao-room-meta">
+                <div>
+                  <h4>${escapeHtml(activeRoom.name)}</h4>
+                  <p>${roomParticipants.map((user) => escapeHtml(user.nome)).join(', ')}</p>
+                </div>
               </div>
-            </div>
-            <div class="comunicacao-mention-row">
-              ${roomParticipants.length ? roomParticipants.map((user) => `
-                <button type="button" class="comunicacao-mention-chip" data-mention-user="${escapeHtml(user.nome)}">@${escapeHtml(user.nome)}</button>
-              `).join('') : '<span class="muted">Sem participantes disponíveis.</span>'}
-            </div>
-            <div class="comunicacao-message-list">
-              ${activeRoom.messages.length ? activeRoom.messages.map((message) => {
-                const mentionsCurrentUser = message.mentionUserIds.includes(currentUser?.id);
-                return `
-                  <article class="comunicacao-message ${message.authorId === currentUser?.id ? 'own' : ''}">
-                    <div class="comunicacao-message-head">
-                      <strong>${escapeHtml(message.authorName)}</strong>
-                      <small>${escapeHtml(new Date(message.sentAt).toLocaleString('pt-BR'))}</small>
-                    </div>
-                    <p>${escapeHtml(message.body).replace(/\n/g, '<br />')}</p>
-                    ${mentionsCurrentUser ? '<span class="badge">Você foi mencionado</span>' : ''}
-                  </article>
-                `;
-              }).join('') : '<div class="empty-state">Ainda não há mensagens nesta sala.</div>'}
-            </div>
-            <div class="comunicacao-composer">
-              <textarea id="chatMessageInput" rows="4" placeholder="Escreva a mensagem e use os botões acima para mencionar alguém do grupo."></textarea>
-              <div class="form-actions">
-                <button id="sendChatMessageBtn" class="btn-save" type="button">Enviar mensagem</button>
+              <div class="comunicacao-mention-row">
+                ${roomParticipants.length ? roomParticipants.map((user) => `
+                  <button type="button" class="comunicacao-mention-chip" data-mention-user="${escapeHtml(user.nome)}">@${escapeHtml(user.nome)}</button>
+                `).join('') : '<span class="muted">Sem participantes disponíveis.</span>'}
               </div>
-            </div>
-          ` : '<div class="empty-state">Selecione uma sala para abrir a conversa. Se você for administrador, monte um grupo e crie uma nova sala.</div>'}
+              <div class="comunicacao-message-list">
+                ${activeRoom.messages.length ? activeRoom.messages.map((message) => {
+                  const mentionsCurrentUser = message.mentionUserIds.includes(currentUser?.id);
+                  return `
+                    <article class="comunicacao-message ${message.authorId === currentUser?.id ? 'own' : ''}">
+                      <div class="comunicacao-message-head">
+                        <strong>${escapeHtml(message.authorName)}</strong>
+                        <small>${escapeHtml(new Date(message.sentAt).toLocaleString('pt-BR'))}</small>
+                      </div>
+                      <p>${escapeHtml(message.body).replace(/\n/g, '<br />')}</p>
+                      ${mentionsCurrentUser ? '<span class="badge">Você foi mencionado</span>' : ''}
+                    </article>
+                  `;
+                }).join('') : '<div class="empty-state">Ainda não há mensagens nesta sala.</div>'}
+              </div>
+              <div class="comunicacao-composer">
+                <textarea id="chatMessageInput" rows="4" placeholder="Escreva a mensagem e use os botões acima para mencionar alguém do grupo."></textarea>
+                <div class="form-actions">
+                  <button id="sendChatMessageBtn" class="btn-save" type="button">Enviar mensagem</button>
+                </div>
+              </div>
+            ` : '<div class="empty-state">Selecione uma sala para abrir a conversa. Se você for administrador, monte um grupo e crie uma nova sala.</div>'}
+          </div>
         </div>
-      </div>
+      `}
     </section>
   `;
+
+  container.querySelectorAll('[data-comunicacao-tab]').forEach((button) => {
+    button.addEventListener('click', () => {
+      selectedCommunicationTab = button.getAttribute('data-comunicacao-tab') || 'emails';
+      renderModuleContent('comunicacao');
+    });
+  });
 
   container.querySelectorAll('[data-email-id]').forEach((button) => {
     button.addEventListener('click', async () => {
