@@ -1,30 +1,6 @@
 {
   "emails": [
     {
-      "id": "seed-user-arykoerne-lima",
-      "toUserId": "user-arykoerne-lima",
-      "toEmail": "arykoernelima@fcaadvogados.com.br",
-      "fromUserId": "admin-thomaz-nobre",
-      "fromName": "Administração FCA Advogados",
-      "fromEmail": "administracao@fcaadvogados.com.br",
-      "subject": "Boas-vindas ao correio corporativo",
-      "body": "Olá, Arykoerne Lima.\n\nSeu e-mail corporativo arykoernelima@fcaadvogados.com.br já está liberado no PROAD com senha provisória 123*. O CPF será preenchido depois pelo administrador.",
-      "sentAt": "2026-08-02T15:46:38.170Z",
-      "readBy": []
-    },
-    {
-      "id": "seed-user-vitor-cavalcante",
-      "toUserId": "user-vitor-cavalcante",
-      "toEmail": "vitorcavalcante@fcaadvogados.com.br",
-      "fromUserId": "admin-thomaz-nobre",
-      "fromName": "Administração FCA Advogados",
-      "fromEmail": "administracao@fcaadvogados.com.br",
-      "subject": "Boas-vindas ao correio corporativo",
-      "body": "Olá, Vitor Cavalcante.\n\nSeu e-mail corporativo vitorcavalcante@fcaadvogados.com.br já está liberado no PROAD com senha provisória 123*. O CPF será preenchido depois pelo administrador.",
-      "sentAt": "2026-08-02T15:46:38.170Z",
-      "readBy": []
-    },
-    {
       "id": "seed-user-joao-paulo-oliveira",
       "toUserId": "user-joao-paulo-oliveira",
       "toEmail": "joaopaulooliveira@fcaadvogados.com.br",
@@ -33,7 +9,7 @@
       "fromEmail": "administracao@fcaadvogados.com.br",
       "subject": "Boas-vindas ao correio corporativo",
       "body": "Olá, João Paulo Oliveira.\n\nSeu e-mail corporativo joaopaulooliveira@fcaadvogados.com.br já está liberado no PROAD com senha provisória 123*. O CPF será preenchido depois pelo administrador.",
-      "sentAt": "2026-08-02T15:46:38.169Z",
+      "sentAt": "2026-08-12T15:49:18.726Z",
       "readBy": []
     },
     {
@@ -45,7 +21,7 @@
       "fromEmail": "administracao@fcaadvogados.com.br",
       "subject": "Boas-vindas ao correio corporativo",
       "body": "Olá, Letícia Lima.\n\nSeu e-mail corporativo leticialima@fcaadvogados.com.br já está liberado no PROAD com senha provisória 123*. O CPF será preenchido depois pelo administrador.",
-      "sentAt": "2026-08-02T15:46:38.169Z",
+      "sentAt": "2026-08-12T15:49:18.726Z",
       "readBy": []
     },
     {
@@ -57,7 +33,7 @@
       "fromEmail": "administracao@fcaadvogados.com.br",
       "subject": "Boas-vindas ao correio corporativo",
       "body": "Olá, Leandro Bittencourt.\n\nSeu e-mail corporativo leandrobittencourt@fcaadvogados.com.br já está liberado no PROAD com senha provisória 123*. O CPF será preenchido depois pelo administrador.",
-      "sentAt": "2026-08-02T15:46:38.169Z",
+      "sentAt": "2026-08-12T15:49:18.726Z",
       "readBy": []
     },
     {
@@ -69,7 +45,7 @@
       "fromEmail": "administracao@fcaadvogados.com.br",
       "subject": "Boas-vindas ao correio corporativo",
       "body": "Olá, Felipe Caribé.\n\nSeu e-mail corporativo felipecaribe@fcaadvogados.com.br já está liberado no PROAD com senha provisória 123*. O CPF será preenchido depois pelo administrador.",
-      "sentAt": "2026-08-02T15:46:38.169Z",
+      "sentAt": "2026-08-12T15:49:18.726Z",
       "readBy": []
     },
     {
@@ -81,7 +57,7 @@
       "fromEmail": "administracao@fcaadvogados.com.br",
       "subject": "Boas-vindas ao correio corporativo",
       "body": "Olá, Felipe Rocha.\n\nSeu e-mail corporativo feliperocha@fcaadvogados.com.br já está liberado no PROAD com senha provisória 123*. O CPF será preenchido depois pelo administrador.",
-      "sentAt": "2026-08-02T15:46:38.169Z",
+      "sentAt": "2026-08-12T15:49:18.726Z",
       "readBy": []
     },
     {
@@ -93,7 +69,7 @@
       "fromEmail": "administracao@fcaadvogados.com.br",
       "subject": "Boas-vindas ao correio corporativo",
       "body": "Olá, Gabriel Gazzaneo.\n\nSeu e-mail corporativo gabrielgazzaneo@fcaadvogados.com.br já está liberado no PROAD com senha provisória 123*. O CPF será preenchido depois pelo administrador.",
-      "sentAt": "2026-08-02T15:46:38.169Z",
+      "sentAt": "2026-08-12T15:49:18.726Z",
       "readBy": []
     },
     {
@@ -105,7 +81,7 @@
       "fromEmail": "administracao@fcaadvogados.com.br",
       "subject": "Boas-vindas ao correio corporativo",
       "body": "Olá, Lucas Alves.\n\nSeu e-mail corporativo lucasalves@fcaadvogados.com.br já está liberado no PROAD com senha provisória 123*. O CPF será preenchido depois pelo administrador.",
-      "sentAt": "2026-08-02T15:46:38.169Z",
+      "sentAt": "2026-08-12T15:49:18.726Z",
       "readBy": []
     },
     {
@@ -116,8 +92,32 @@
       "fromName": "Administração FCA Advogados",
       "fromEmail": "administracao@fcaadvogados.com.br",
       "subject": "Boas-vindas ao correio corporativo",
-      "body": "Olá, Luís Ferrari.\n\nSeu e-mail corporativo luisferrrari@fcaadvogados.com.br já está liberado no PROAD com senha provisória 123*. O CPF será preenchido depois pelo administrador.",
-      "sentAt": "2026-08-02T15:46:38.169Z",
+      "body": "Olá, Luís Ferrrari.\n\nSeu e-mail corporativo luisferrrari@fcaadvogados.com.br já está liberado no PROAD com senha provisória 123*. O CPF será preenchido depois pelo administrador.",
+      "sentAt": "2026-08-12T15:49:18.726Z",
+      "readBy": []
+    },
+    {
+      "id": "seed-user-arykoerne-lima",
+      "toUserId": "user-arykoerne-lima",
+      "toEmail": "arykoernelima@fcaadvogados.com.br",
+      "fromUserId": "admin-thomaz-nobre",
+      "fromName": "Administração FCA Advogados",
+      "fromEmail": "administracao@fcaadvogados.com.br",
+      "subject": "Boas-vindas ao correio corporativo",
+      "body": "Olá, Arykoerne Lima.\n\nSeu e-mail corporativo arykoernelima@fcaadvogados.com.br já está liberado no PROAD com senha provisória 123*. O CPF será preenchido depois pelo administrador.",
+      "sentAt": "2026-08-12T15:49:18.726Z",
+      "readBy": []
+    },
+    {
+      "id": "seed-user-vitor-cavalcante",
+      "toUserId": "user-vitor-cavalcante",
+      "toEmail": "vitorcavalcante@fcaadvogados.com.br",
+      "fromUserId": "admin-thomaz-nobre",
+      "fromName": "Administração FCA Advogados",
+      "fromEmail": "administracao@fcaadvogados.com.br",
+      "subject": "Boas-vindas ao correio corporativo",
+      "body": "Olá, Vitor Cavalcante.\n\nSeu e-mail corporativo vitorcavalcante@fcaadvogados.com.br já está liberado no PROAD com senha provisória 123*. O CPF será preenchido depois pelo administrador.",
+      "sentAt": "2026-08-12T15:49:18.726Z",
       "readBy": []
     }
   ],
@@ -244,40 +244,13 @@
   ],
   "presence": [
     {
-      "userId": "user-vitor-cavalcante",
-      "nome": "Vitor Cavalcante",
-      "email": "vitorcavalcante@fcaadvogados.com.br",
-      "perfil": "usuario",
-      "setores": [],
-      "isOnline": true,
-      "lastSeenAt": "2026-08-06T19:26:58.515Z"
-    },
-    {
-      "userId": "user-joao-paulo-oliveira",
-      "nome": "João Paulo Oliveira",
-      "email": "joaopaulooliveira@fcaadvogados.com.br",
-      "perfil": "usuario",
-      "setores": [],
-      "isOnline": true,
-      "lastSeenAt": "2026-08-06T19:27:31.700Z"
-    },
-    {
-      "userId": "user-thomaz-nobre-corporativo",
-      "nome": "Thomaz Nobre",
-      "email": "thomaznobre@fcaadvogados.com.br",
-      "perfil": "usuario",
-      "setores": [],
-      "isOnline": false,
-      "lastSeenAt": "2026-08-06T19:29:41.016Z"
-    },
-    {
       "userId": "admin-thomaz-nobre",
       "nome": "Thomaz Nobre",
       "email": "thomaz.nobre@hotmail.com",
       "perfil": "administrador",
       "setores": [],
       "isOnline": true,
-      "lastSeenAt": "2026-08-06T19:29:49.083Z"
+      "lastSeenAt": "2026-08-12T15:49:18.728Z"
     }
   ],
   "externalSync": {
