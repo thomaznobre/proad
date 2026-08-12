@@ -290,7 +290,8 @@ function loadCurrentUser() {
   }
 
   try {
-    currentUser = JSON.parse(saved);
+    const parsed = JSON.parse(saved);
+    currentUser = buildCurrentUserSession(parsed);
   } catch (error) {
     currentUser = null;
   }
@@ -856,7 +857,7 @@ const defaultStatusCatalog = [
   'OFÍCIO AO GESTOR',
   'OFÍCIO EM RESPOSTA E DOCS (ACEITE DO FORNECEDOR)',
   'OFÍCIO EM RESPOSTA E PROCESSO LICITATÓRIO (AUTORIZAÇÃO)',
-  'PESQUISA DE MERCADOLÓGICA (ATESTANDO VANTAJOSIDADE FINANCEIRA)',
+  'PESQUISA MERCADOLÓGICA',
   'MINUTA DE CONTRATO',
   'MINUTA DE TERMO ADITIVO',
   'MINUTA DE EDITAL',
@@ -888,7 +889,7 @@ const defaultRitosAtipicos = [
   'OFÍCIO AO GESTOR',
   'OFÍCIO EM RESPOSTA E DOCS (ACEITE DO FORNECEDOR)',
   'OFÍCIO EM RESPOSTA E PROCESSO LICITATÓRIO (AUTORIZAÇÃO)',
-  'PESQUISA DE MERCADOLÓGICA (ATESTANDO VANTAJOSIDADE FINANCEIRA)',
+  'PESQUISA MERCADOLÓGICA',
   'MINUTA DE CONTRATO',
   'MINUTA DE TERMO ADITIVO',
   'MINUTA DE EDITAL',
@@ -2705,8 +2706,9 @@ function moveStatusCatalogItem(status, targetStatus) {
   }
 
   const [moved] = catalog.splice(fromIndex, 1);
-  const nextTargetIndex = catalog.indexOf(target);
-  catalog.splice(nextTargetIndex, 0, moved);
+  const adjustedTargetIndex = catalog.indexOf(target);
+  const nextIndex = fromIndex < targetIndex ? adjustedTargetIndex + 1 : adjustedTargetIndex;
+  catalog.splice(Math.max(0, Math.min(nextIndex, catalog.length)), 0, moved);
 
   state.statusCatalog = catalog;
   state.ritosPorModalidade = normalizeRitosPorModalidade(state.ritosPorModalidade, catalog, state.modalidades);
@@ -2951,9 +2953,16 @@ function markCorporateEmailAsRead(emailId) {
 }
 
 function getOnlineUsers() {
-  const onlineIds = new Set((communicationStore.presence || []).filter((entry) => entry.isOnline !== false).map((entry) => entry.userId));
+  const presenceEntries = Array.isArray(communicationStore?.presence) ? communicationStore.presence : [];
+  const onlineIds = new Set(presenceEntries.filter((entry) => entry.isOnline !== false).map((entry) => entry.userId));
+  const knownIds = new Set(presenceEntries.map((entry) => entry.userId));
+
   return getAllUsers()
-    .filter((user) => user.id === currentUser?.id || onlineIds.has(user.id))
+    .map((user) => ({
+      ...user,
+      isOnline: onlineIds.has(user.id) ? true : (knownIds.has(user.id) ? false : undefined)
+    }))
+    .filter((user) => user.id === currentUser?.id || onlineIds.has(user.id) || knownIds.has(user.id))
     .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
 }
 
@@ -7385,7 +7394,29 @@ function renderModuleContent(moduleKey) {
     `;
 
     if (isAdmin) {
+      const bindDirectClick = (selector, handler) => {
+        container.querySelectorAll(selector).forEach((element) => {
+          if (!element.dataset.ritosBound) {
+            element.addEventListener('click', handler);
+            element.dataset.ritosBound = '1';
+          }
+        });
+      };
+
+      const bindDirectChange = (selector, handler) => {
+        container.querySelectorAll(selector).forEach((element) => {
+          if (!element.dataset.ritosBound) {
+            element.addEventListener('change', handler);
+            element.dataset.ritosBound = '1';
+          }
+        });
+      };
+
       container.querySelectorAll('[data-status-drag]').forEach((item) => {
+        if (item.dataset.ritosDragBound) {
+          return;
+        }
+
         item.addEventListener('dragstart', (event) => {
           const status = String(item.getAttribute('data-status-drag') || '').trim();
           draggingCatalogStatus = status;
@@ -7424,72 +7455,50 @@ function renderModuleContent(moduleKey) {
           }
           moveStatusCatalogItem(draggingCatalogStatus, targetStatus);
         });
+
+        item.dataset.ritosDragBound = '1';
       });
 
-      const addBtn = document.getElementById('addStatusCatalogBtn');
-      if (addBtn) {
-        addBtn.addEventListener('click', addStatusToCatalog);
-      }
-
-      container.querySelectorAll('[data-status-remove]').forEach((button) => {
-        button.addEventListener('mousedown', (event) => {
-          event.stopPropagation();
-        });
-
-        button.addEventListener('click', (event) => {
-          event.preventDefault();
-          event.stopPropagation();
-          removeStatusFromCatalog(button.getAttribute('data-status-remove'));
-        });
+      bindDirectClick('[data-status-remove]', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        removeStatusFromCatalog(event.currentTarget.getAttribute('data-status-remove'));
       });
 
-      container.querySelectorAll('[data-status-edit]').forEach((button) => {
-        button.addEventListener('click', () => {
-          const currentStatus = button.getAttribute('data-status-edit');
-          const nextStatus = window.prompt('Editar nome do status:', currentStatus || '');
-          if (nextStatus === null) {
-            return;
-          }
+      bindDirectClick('[data-status-edit]', (event) => {
+        const currentStatus = event.currentTarget.getAttribute('data-status-edit');
+        const nextStatus = window.prompt('Editar nome do status:', currentStatus || '');
+        if (nextStatus !== null) {
           renameStatusInCatalog(currentStatus, nextStatus);
-        });
+        }
       });
 
-      const addModalidadeBtn = document.getElementById('addModalidadeBtn');
-      if (addModalidadeBtn) {
-        addModalidadeBtn.addEventListener('click', addModalidadeToRitos);
-      }
-
-      container.querySelectorAll('[data-modalidade-edit]').forEach((button) => {
-        button.addEventListener('click', () => {
-          const currentModalidade = button.getAttribute('data-modalidade-edit');
-          const nextModalidade = window.prompt('Editar nome da modalidade:', currentModalidade || '');
-          if (nextModalidade === null) {
-            return;
-          }
+      bindDirectClick('[data-modalidade-edit]', (event) => {
+        const currentModalidade = event.currentTarget.getAttribute('data-modalidade-edit');
+        const nextModalidade = window.prompt('Editar nome da modalidade:', currentModalidade || '');
+        if (nextModalidade !== null) {
           renameModalidadeInRitos(currentModalidade, nextModalidade);
-        });
+        }
       });
 
-      container.querySelectorAll('[data-modalidade-remove]').forEach((button) => {
-        button.addEventListener('click', () => {
-          const currentModalidade = String(button.getAttribute('data-modalidade-remove') || '').trim();
-          if (!currentModalidade) {
-            return;
-          }
-          const confirmed = window.confirm(`Deseja excluir a modalidade "${currentModalidade}"?`);
-          if (!confirmed) {
-            return;
-          }
+      bindDirectClick('[data-modalidade-remove]', (event) => {
+        const currentModalidade = String(event.currentTarget.getAttribute('data-modalidade-remove') || '').trim();
+        if (!currentModalidade) {
+          return;
+        }
+        const confirmed = window.confirm(`Deseja excluir a modalidade "${currentModalidade}"?`);
+        if (confirmed) {
           removeModalidadeFromRitos(currentModalidade);
-        });
+        }
       });
 
-      container.querySelectorAll('[data-rito-modalidade][data-rito-status]').forEach((checkbox) => {
-        checkbox.addEventListener('change', () => {
-          const modalidade = checkbox.getAttribute('data-rito-modalidade');
-          const status = checkbox.getAttribute('data-rito-status');
-          toggleRitoStatus(modalidade, status, checkbox.checked);
-        });
+      bindDirectClick('#addStatusCatalogBtn', () => addStatusToCatalog());
+      bindDirectClick('#addModalidadeBtn', () => addModalidadeToRitos());
+      bindDirectChange('[data-rito-modalidade][data-rito-status]', (event) => {
+        const checkbox = event.currentTarget;
+        const modalidade = checkbox.getAttribute('data-rito-modalidade');
+        const status = checkbox.getAttribute('data-rito-status');
+        toggleRitoStatus(modalidade, status, checkbox.checked);
       });
     }
 
