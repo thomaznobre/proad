@@ -72,8 +72,48 @@ function canonicalizeStatusName(status) {
   return statusCanonicalAliases[aliasKey] || raw;
 }
 
+function normalizePerfilName(value) {
+  if (value === true) {
+    return 'administrador';
+  }
+
+  const candidates = [];
+  if (Array.isArray(value)) {
+    candidates.push(...value);
+  } else if (value && typeof value === 'object') {
+    candidates.push(value.perfil, value.role, value.tipoPerfil, value.cargo, value.name, value.label);
+    if (Array.isArray(value.roles)) {
+      candidates.push(...value.roles);
+    }
+  } else {
+    candidates.push(value);
+  }
+
+  let fallback = '';
+  for (const candidate of candidates) {
+    const normalized = String(candidate || '').trim().toLowerCase();
+    if (!normalized) {
+      continue;
+    }
+    if (normalized === 'administrador' || normalized === 'admin') {
+      return 'administrador';
+    }
+    if (!fallback) {
+      fallback = normalized;
+    }
+  }
+
+  return fallback;
+}
+
 function isAdminUser(user = currentUser) {
-  return String(user?.perfil || '').trim().toLowerCase() === 'administrador';
+  const source = user && typeof user === 'object' ? user : {};
+  if (source.isAdmin === true || source.admin === true) {
+    return true;
+  }
+
+  const perfil = normalizePerfilName(source.perfil ?? source.role ?? source.tipoPerfil ?? source.cargo ?? source.roles ?? source.privileges);
+  return perfil === 'administrador' || perfil === 'admin';
 }
 
 function hasAdminAccess(user = currentUser) {
@@ -136,6 +176,8 @@ function normalizeUser(user) {
   const accessNodeIds = normalizeUserAccessNodeIds(source.accessNodeIds);
   const legacySetores = normalizeUserSetores(source.setores);
   const setoresFromAccess = Array.from(new Set(acessosMunicipais.map((entry) => entry.setor)));
+  const normalizedPerfil = normalizePerfilName(source.perfil ?? source.role ?? source.tipoPerfil ?? source.cargo ?? source.roles ?? source.privileges) || 'usuario';
+
   return {
     id: String(source.id || crypto.randomUUID()),
     nome: String(source.nome || '').trim(),
@@ -143,7 +185,7 @@ function normalizeUser(user) {
     cpf: String(source.cpf || '').trim(),
     phone: String(source.phone || '').trim(),
     password: String(source.password || ''),
-    perfil: String(source.perfil || 'usuario').trim().toLowerCase(),
+    perfil: normalizedPerfil,
     setores: Array.from(new Set([...legacySetores, ...setoresFromAccess])),
     acessosMunicipais,
     accessNodeIds,

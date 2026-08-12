@@ -93,6 +93,40 @@ test('renderModuleContent do catálogo de status mantém ações de admin para p
   assert.match(container.innerHTML, /Adicionar/);
 });
 
+test('isAdminUser aceita perfis de administrador persistidos em role ou caixa mista', () => {
+  const context = {
+    console,
+    crypto: { randomUUID: () => 'test-id' },
+    localStorage: {
+      store: {},
+      getItem(key) { return this.store[key] ?? null; },
+      setItem(key, value) { this.store[key] = String(value); },
+      removeItem(key) { delete this.store[key]; }
+    },
+    window: { alert() {}, prompt() { return null; } },
+    document: {
+      addEventListener() {},
+      body: { dataset: {} },
+      getElementById() { return null; },
+      querySelectorAll() { return []; },
+      createElement() { return {}; }
+    },
+    setTimeout,
+    clearTimeout,
+    URLSearchParams,
+    Date
+  };
+
+  vm.createContext(context);
+  vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8'), context);
+
+  assert.equal(context.isAdminUser({ perfil: 'ADMINISTRADOR' }), true);
+  assert.equal(context.isAdminUser({ role: 'Administrador' }), true);
+  assert.equal(context.isAdminUser({ roles: ['usuario', 'administrador'] }), true);
+  assert.equal(context.isAdminUser({ perfil: 'usuario' }), false);
+  assert.equal(context.normalizeUser({ perfil: 'Administrador' }).perfil, 'administrador');
+});
+
 test('renderModuleContent do módulo de ritos permite filtrar modalidades visíveis com seleção livre', () => {
   const context = {
     console,
