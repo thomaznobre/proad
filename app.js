@@ -7820,12 +7820,6 @@ function renderModuleContent(moduleKey) {
                       <select id="contratoSecretaria" ${canEdit ? '' : 'disabled'}></select>
                     </div>
                     <div class="detail-row">
-                      <span>Setor responsável</span>
-                      <select id="contratoSetor" ${canEdit ? '' : 'disabled'}>
-                        ${normalizeSetoresDestino(state.setoresDestino).map((setor) => `<option value="${escapeHtml(setor)}" ${selectedRecord.setorResponsavel === setor ? 'selected' : ''}>${escapeHtml(setor)}</option>`).join('')}
-                      </select>
-                    </div>
-                    <div class="detail-row">
                       <span>Fundo</span>
                       <select id="contratoFundo" ${canEdit ? '' : 'disabled'}>
                         ${fundosOptions.map((fundo) => `<option value="${escapeHtml(fundo)}" ${selectedRecord.fundo === fundo ? 'selected' : ''}>${escapeHtml(fundo)}</option>`).join('')}
@@ -7836,12 +7830,6 @@ function renderModuleContent(moduleKey) {
                       <select id="contratoModalidade" ${canEdit ? '' : 'disabled'}>
                         <option value="-" ${selectedRecord.modalidade === '-' ? 'selected' : ''}>-</option>
                         ${modalidadesList.map((modalidade) => `<option value="${escapeHtml(modalidade)}" ${selectedRecord.modalidade === modalidade ? 'selected' : ''}>${escapeHtml(modalidade)}</option>`).join('')}
-                      </select>
-                    </div>
-                    <div class="detail-row">
-                      <span>Status</span>
-                      <select id="contratoStatus" ${canEdit ? '' : 'disabled'}>
-                        ${statusCatalog.map((status) => `<option value="${escapeHtml(status)}" ${selectedRecord.status === status ? 'selected' : ''}>${escapeHtml(status)}</option>`).join('')}
                       </select>
                     </div>
                     <div class="detail-row">
@@ -7865,15 +7853,15 @@ function renderModuleContent(moduleKey) {
                       </div>
                     </div>
                     <div class="detail-row">
-                      <span>${isAditivoRecord ? 'Contrato ou processo administrativo vinculado' : 'Vínculo principal (opcional)'}</span>
-                      <select id="contratoParent" ${canEdit ? '' : 'disabled'} ${isAditivoRecord ? 'required' : ''}>
-                        <option value="">Avulso</option>
+                      <span>Vínculo do instrumento</span>
+                      <select id="contratoParent" ${canEdit ? '' : 'disabled'}>
+                        <option value="" ${!selectedRecord?.parentId ? 'selected' : ''}>Avulso</option>
                         ${baseParentOptions}
                       </select>
                     </div>
                     <div class="detail-row">
-                      <span>${isAditivoRecord ? 'Processo administrativo de origem' : 'Número do processo original'}</span>
-                      <input id="contratoProcessoOrigem" list="contratoProcessoOrigemList" value="${escapeHtml(selectedRecord.processoOrigem || '')}" ${canEdit ? '' : 'disabled'} ${isAditivoRecord ? 'required' : ''} />
+                      <span id="contratoProcessoOrigemLabel">${!selectedRecord?.parentId ? 'Processo original' : 'Apenso ao processo nº'}</span>
+                      <input id="contratoProcessoOrigem" list="contratoProcessoOrigemList" value="${escapeHtml(selectedRecord.processoOrigem || '')}" placeholder="${!selectedRecord?.parentId ? 'Digite o número do processo original' : 'Selecione ou digite o processo'}" ${canEdit ? '' : 'disabled'} required />
                       <datalist id="contratoProcessoOrigemList">
                         ${processosOrigemOptions.map((numero) => `<option value="${escapeHtml(numero)}"></option>`).join('')}
                       </datalist>
@@ -8068,24 +8056,36 @@ function renderModuleContent(moduleKey) {
     const numeroInput = document.getElementById('contratoNumero');
     const tipoSelect = document.getElementById('contratoTipo');
     const processoOrigemInput = document.getElementById('contratoProcessoOrigem');
+    const processoOrigemLabel = document.getElementById('contratoProcessoOrigemLabel');
 
-    const refreshAditivoPreview = () => {
+    const refreshProcessoOrigemFieldState = () => {
+      const hasParentSelection = Boolean(String(parentSelect?.value || '').trim());
       const currentTipo = String(tipoSelect?.value || selectedRecord?.tipo || 'Contrato').trim();
       const isAditivo = currentTipo === 'Aditivo';
+
+      if (processoOrigemLabel) {
+        processoOrigemLabel.textContent = hasParentSelection ? 'Apenso ao processo nº' : 'Processo original';
+      }
+
+      if (processoOrigemInput) {
+        processoOrigemInput.required = true;
+        processoOrigemInput.placeholder = hasParentSelection
+          ? 'Selecione ou digite o processo'
+          : 'Digite o número do processo original';
+
+        const inputQuery = String(processoOrigemInput.value || '').trim().toLowerCase();
+        const filteredProcessos = processosOrigemOptions.filter((numero) => !inputQuery || numero.toLowerCase().includes(inputQuery));
+        const datalist = document.getElementById('contratoProcessoOrigemList');
+        if (datalist) {
+          datalist.innerHTML = filteredProcessos.slice(0, 20).map((numero) => `<option value="${escapeHtml(numero)}"></option>`).join('');
+        }
+      }
+
       if (!numeroInput) {
         return;
       }
 
-      if (parentSelect) {
-        parentSelect.required = isAditivo;
-      }
-
-      if (processoOrigemInput) {
-        processoOrigemInput.required = isAditivo;
-      }
-
       numeroInput.disabled = isAditivo;
-
       if (isAditivo) {
         const baseNumero = String(parentSelect?.value || '').trim();
         const baseRecord = findContratoRecordByNumero(baseNumero, records);
@@ -8093,10 +8093,11 @@ function renderModuleContent(moduleKey) {
       }
     };
 
-    if (parentSelect && tipoSelect) {
-      parentSelect.addEventListener('change', refreshAditivoPreview);
-      tipoSelect.addEventListener('change', refreshAditivoPreview);
-      refreshAditivoPreview();
+    if (parentSelect && tipoSelect && processoOrigemInput) {
+      parentSelect.addEventListener('change', refreshProcessoOrigemFieldState);
+      tipoSelect.addEventListener('change', refreshProcessoOrigemFieldState);
+      processoOrigemInput.addEventListener('input', refreshProcessoOrigemFieldState);
+      refreshProcessoOrigemFieldState();
     }
 
     if (valorContratadoInput && canEdit) {
@@ -8173,7 +8174,7 @@ function renderModuleContent(moduleKey) {
           objeto: String(document.getElementById('contratoObjeto')?.value || '').trim(),
           municipio: String(document.getElementById('contratoMunicipio')?.value || '-').trim(),
           secretaria: String(document.getElementById('contratoSecretaria')?.value || '-').trim(),
-          setorResponsavel: String(document.getElementById('contratoSetor')?.value || '-').trim(),
+          setorResponsavel: String(selectedRecord?.setorResponsavel || '-').trim() || '-',
           fundo: String(document.getElementById('contratoFundo')?.value || '').trim(),
           dataInicio: normalizeDateInputValue(document.getElementById('contratoDataInicio')?.value || ''),
           dataTermino: normalizeDateInputValue(document.getElementById('contratoDataTermino')?.value || ''),
@@ -8184,7 +8185,7 @@ function renderModuleContent(moduleKey) {
           parentId: String(document.getElementById('contratoParent')?.value || '').trim() || null,
           processoOrigem: String(document.getElementById('contratoProcessoOrigem')?.value || '').trim(),
           modalidade: String(document.getElementById('contratoModalidade')?.value || '-').trim(),
-          status: String(document.getElementById('contratoStatus')?.value || 'ETP').trim(),
+          status: String(selectedRecord?.status || 'ETP').trim() || 'ETP',
           processoNumero: '',
           demandId: '',
           createdAtIso: selectedRecord?.createdAtIso || new Date().toISOString(),
@@ -8203,14 +8204,20 @@ function renderModuleContent(moduleKey) {
           return;
         }
 
-        if (payload.tipo === 'Aditivo' && !payload.processoOrigem) {
-          window.alert('Preencha o processo administrativo de origem para salvar o termo aditivo.');
+        if (!payload.processoOrigem) {
+          const processoLabel = String(document.getElementById('contratoParent')?.value || '').trim()
+            ? 'Informe o número do processo apenso ao registro.'
+            : 'Informe o número do processo original do registro avulso.';
+          window.alert(processoLabel);
           return;
         }
 
-        if (payload.tipo === 'Aditivo' && !payload.parentId) {
-          window.alert('Selecione o contrato ou processo administrativo base para o termo aditivo.');
-          return;
+        if (payload.parentId) {
+          const linkedRecord = findContratoRecordByNumero(payload.parentId, records);
+          if (!linkedRecord && payload.tipo === 'Aditivo') {
+            window.alert('O vínculo selecionado não foi encontrado. escolha um contrato ou processo existente, ou deixe como "Avulso".');
+            return;
+          }
         }
 
         const saved = saveContratoArpRecord(payload, creatingContratoRecord ? null : selectedRecord?.id);
