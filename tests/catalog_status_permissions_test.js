@@ -189,3 +189,38 @@ test('renderModuleContent do módulo de ritos permite filtrar modalidades visív
   assert.match(container.innerHTML, /data-ritos-modalidade-card="Contratação Direta"/);
   assert.doesNotMatch(container.innerHTML, /data-ritos-modalidade-card="Pregão"/);
 });
+
+test('usuários persistidos com identidade de administrador sem perfil ainda acessam ações de admin', () => {
+  const context = {
+    console,
+    crypto: { randomUUID: () => 'test-id' },
+    localStorage: {
+      store: {},
+      getItem(key) { return this.store[key] ?? null; },
+      setItem(key, value) { this.store[key] = String(value); },
+      removeItem(key) { delete this.store[key]; }
+    },
+    window: { alert() {}, prompt() { return null; } },
+    document: {
+      addEventListener() {},
+      body: { dataset: {} },
+      getElementById() { return null; },
+      querySelectorAll() { return []; },
+      createElement() { return {}; }
+    },
+    setTimeout,
+    clearTimeout,
+    URLSearchParams,
+    Date
+  };
+
+  vm.createContext(context);
+  vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8'), context);
+
+  const legacyAdmin = { id: 'admin-thomaz-nobre', nome: 'Thomaz Nobre', email: 'thomaz.nobre@hotmail.com' };
+  const normalized = context.normalizeUser(legacyAdmin);
+
+  assert.equal(normalized.perfil, 'administrador');
+  assert.equal(context.isAdminUser({ email: 'thomaz.nobre@hotmail.com' }), true);
+  assert.equal(context.isAdminUser({ id: 'admin-thomaz-nobre' }), true);
+});

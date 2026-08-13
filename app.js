@@ -112,6 +112,14 @@ function isAdminUser(user = currentUser) {
     return true;
   }
 
+  const id = String(source.id || '').trim().toLowerCase();
+  const email = String(source.email || '').trim().toLowerCase();
+  const seededAdminIds = new Set(seededDirectoryUsers.map((entry) => String(entry.id || '').trim().toLowerCase()));
+  const seededAdminEmails = new Set(seededDirectoryUsers.map((entry) => String(entry.email || '').trim().toLowerCase()));
+  if (seededAdminIds.has(id) || seededAdminEmails.has(email)) {
+    return true;
+  }
+
   const perfil = normalizePerfilName(source.perfil ?? source.role ?? source.tipoPerfil ?? source.cargo ?? source.roles ?? source.privileges);
   return perfil === 'administrador' || perfil === 'admin';
 }
@@ -176,7 +184,10 @@ function normalizeUser(user) {
   const accessNodeIds = normalizeUserAccessNodeIds(source.accessNodeIds);
   const legacySetores = normalizeUserSetores(source.setores);
   const setoresFromAccess = Array.from(new Set(acessosMunicipais.map((entry) => entry.setor)));
-  const normalizedPerfil = normalizePerfilName(source.perfil ?? source.role ?? source.tipoPerfil ?? source.cargo ?? source.roles ?? source.privileges) || 'usuario';
+  const seededAdmin = isAdminUser(source);
+  const normalizedPerfil = seededAdmin
+    ? 'administrador'
+    : (normalizePerfilName(source.perfil ?? source.role ?? source.tipoPerfil ?? source.cargo ?? source.roles ?? source.privileges) || 'usuario');
 
   return {
     id: String(source.id || crypto.randomUUID()),
@@ -8446,13 +8457,20 @@ function renderModuleContent(moduleKey) {
   const renderFilterDropdown = (key, label, options) => {
     const selectedValues = Array.isArray(filtrosPainel[key]) ? filtrosPainel[key] : [];
     const allSelected = !options.length || selectedValues.length === options.length;
+    const hasActiveFilter = !allSelected && selectedValues.length > 0;
     const triggerLabel = allSelected ? 'Todos' : `${selectedValues.length}/${options.length}`;
 
     return `
       <div class="filter-group filter-dropdown-group">
         <label>${escapeHtml(label)}</label>
         <div class="checkbox-dropdown panel-filter-dropdown" data-panel-filter-dropdown="${escapeHtml(key)}">
-          <button type="button" class="dropdown-trigger-btn" data-panel-filter-trigger aria-label="Abrir filtro de ${escapeHtml(label)}">${escapeHtml(triggerLabel)} ☰</button>
+          <button type="button" class="dropdown-trigger-btn ${hasActiveFilter ? 'is-active' : ''}" data-panel-filter-trigger aria-label="Abrir filtro de ${escapeHtml(label)}">
+            <span class="filter-trigger-main">
+              <span class="filter-trigger-label">${escapeHtml(triggerLabel)}</span>
+              ${hasActiveFilter ? `<span class="filter-trigger-badge">${selectedValues.length}</span>` : ''}
+            </span>
+            <span class="filter-trigger-icon">☰</span>
+          </button>
           <div class="dropdown-panel" data-panel-filter-panel>
             <label class="cb-option all-option"><input type="checkbox" data-panel-filter-all ${allSelected ? 'checked' : ''}> Todos</label>
             ${options.length ? options.map((option) => `<label class="cb-option"><input type="checkbox" data-panel-filter-option value="${escapeHtml(option)}" ${selectedValues.includes(option) ? 'checked' : ''}> ${escapeHtml(option)}</label>`).join('') : '<p class="messages-empty">Sem opções disponíveis.</p>'}
