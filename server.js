@@ -807,7 +807,16 @@ function serveStaticFile(requestPath, response) {
     }
 
     const ext = path.extname(absolutePath).toLowerCase();
-    response.writeHead(200, { 'Content-Type': MIME_TYPES[ext] || 'application/octet-stream' });
+    const headers = {
+      'Content-Type': MIME_TYPES[ext] || 'application/octet-stream',
+      'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0'
+    };
+
+    if (requestPath === '/' || ext === '.html') {
+      headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0';
+    }
+
+    response.writeHead(200, headers);
     response.end(content);
   });
 }
