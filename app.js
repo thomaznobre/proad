@@ -879,7 +879,6 @@ const defaultSetoresPorSecretaria = {
 
 const defaultModalidades = [
   'Adesão à ARP',
-  'Solicitação de Termo Aditivo',
   'Inexigibilidade - Art. 74, I',
   'Inexigibilidade - Art. 74, II',
   'Inexigibilidade - Art. 74, III',
@@ -974,7 +973,6 @@ const defaultRitosAtipicos = [
 
 const defaultRitosPorModalidade = {
   'Adesão à ARP': [...defaultRitosAtipicos],
-  'Solicitação de Termo Aditivo': [...defaultRitosAtipicos],
   'Inexigibilidade - Art. 74, I': [...defaultRitosAtipicos],
   'Inexigibilidade - Art. 74, II': [...defaultRitosAtipicos],
   'Inexigibilidade - Art. 74, III': [...defaultRitosAtipicos],
@@ -2136,10 +2134,15 @@ function normalizeStatusCatalog(statuses) {
 
 function normalizeModalidades(modalidades) {
   const incoming = Array.isArray(modalidades)
-    ? modalidades.map((modalidade) => String(modalidade || '').trim()).filter(Boolean)
+    ? modalidades
+        .map((modalidade) => String(modalidade || '').trim())
+        .filter((modalidade) => modalidade && modalidade !== 'Solicitação de Termo Aditivo')
     : [];
 
-  const normalized = [...defaultModalidades, ...incoming];
+  const normalized = [...defaultModalidades, ...incoming].filter((modalidade) => {
+    const value = String(modalidade || '').trim();
+    return value && value !== 'Solicitação de Termo Aditivo';
+  });
   const unique = [];
   const seen = new Set();
 

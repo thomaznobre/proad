@@ -37,6 +37,37 @@ test('hasAdminAccess reconhece perfis de administrador com variação de caixa',
   assert.equal(context.hasAdminAccess({ perfil: 'ADMINISTRADOR' }), true);
 });
 
+test('o catálogo padrão não inclui a modalidade de termo aditivo', () => {
+  const context = {
+    console,
+    crypto: { randomUUID: () => 'test-id' },
+    localStorage: {
+      store: {},
+      getItem(key) { return this.store[key] ?? null; },
+      setItem(key, value) { this.store[key] = String(value); },
+      removeItem(key) { delete this.store[key]; }
+    },
+    window: { alert() {} },
+    document: {
+      addEventListener() {},
+      body: { dataset: {} },
+      getElementById() { return null; },
+      querySelectorAll() { return []; },
+      createElement() { return {}; }
+    },
+    setTimeout,
+    clearTimeout,
+    URLSearchParams,
+    Date
+  };
+
+  vm.createContext(context);
+  vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8'), context);
+
+  assert.equal(vm.runInContext('defaultModalidades.includes("Solicitação de Termo Aditivo")', context), false);
+  assert.equal(vm.runInContext('normalizeModalidades(["Solicitação de Termo Aditivo", "Dispensa"]).includes("Solicitação de Termo Aditivo")', context), false);
+});
+
 test('renderModuleContent do catálogo de status mantém ações de admin para perfis com caixa mista', () => {
   const context = {
     console,
